@@ -29,6 +29,7 @@ import {
   Trophy
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
   // Authentication & Session
@@ -222,17 +223,28 @@ export default function App() {
 
   // If we are in public student credential verification mode, render that immediately
   if (pvcIdFromUrl) {
-    return <VerificationView pvcId={pvcIdFromUrl} />;
+    return (
+      <>
+        <VerificationView pvcId={pvcIdFromUrl} />
+        <Analytics />
+      </>
+    );
   }
 
   // If we are logged in as a student, render the student portal immediately
   if (studentToken && student) {
-    return <StudentPortal student={student} token={studentToken} onLogout={handleStudentLogout} />;
+    return (
+      <>
+        <StudentPortal student={student} token={studentToken} onLogout={handleStudentLogout} />
+        <Analytics />
+      </>
+    );
   }
 
   // Admin / Student login layout
   if (!token || !admin) {
     return (
+      <>
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
         {/* Soft elegant background shapes */}
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-300/20 rounded-full blur-3xl pointer-events-none" />
@@ -491,6 +503,8 @@ export default function App() {
           </div>
         </div>
       </div>
+      <Analytics />
+      </>
     );
   }
 
@@ -505,6 +519,7 @@ export default function App() {
   ];
 
   return (
+    <>
     <div className="min-h-screen bg-slate-50 flex">
       
       {/* 1. LEFT SIDEBAR - DESKTOP */}
@@ -776,5 +791,7 @@ export default function App() {
       </div>
 
     </div>
+    <Analytics />
+    </>
   );
 }
