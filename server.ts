@@ -514,22 +514,24 @@ async function saveToCloudSQL(data: DBSchema) {
 }
 
 // Atomic local & Cloud SQL database write
-function saveDatabase(data: DBSchema) {
+async function saveDatabase(data: DBSchema): Promise<void> {
   const tempFile = `${DB_FILE}.tmp`;
   try {
     fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), "utf-8");
     fs.renameSync(tempFile, DB_FILE);
   } catch (error) {
-    console.error("Local database save failed:", error);
+    console.error("Local database save failed (expected in read-only environments like Vercel):", error);
     if (fs.existsSync(tempFile)) {
       try { fs.unlinkSync(tempFile); } catch (_) {}
     }
   }
 
-  // Trigger background sync to Cloud SQL
-  saveToCloudSQL(data).catch((err) => {
+  // Await Cloud SQL write to ensure persistence on Vercel
+  try {
+    await saveToCloudSQL(data);
+  } catch (err) {
     console.error("[Cloud SQL] Save failed:", err);
-  });
+  }
 }
 
 // Initial default state (will be replaced by Cloud SQL load in startServer)
@@ -727,28 +729,54 @@ Instructions:
   });
 }
 
-async function startServer() {
-  const app = express();
+const app = express();
 
-  // Middleware for body parsing
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+// Middleware for body parsing
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-  // Helper to add audit logs
-  function logActivity(action: string, details: string, adminName: string) {
-    db.auditLogs.unshift({
-      id: "log-" + crypto.randomUUID().substring(0, 8),
-      action,
-      details,
-      admin_name: adminName,
-      created_at: new Date().toISOString(),
+// Database Auto-loading State Manager
+let dbPromise: Promise<DBSchema> | null = null;
+let isDbLoaded = false;
+
+function ensureDbLoaded(): Promise<DBSchema> {
+  if (!dbPromise) {
+    dbPromise = loadFromCloudSQL().then((loadedDb) => {
+      db = loadedDb;
+      isDbLoaded = true;
+      return loadedDb;
     });
-    // Keep last 1000 logs
-    if (db.auditLogs.length > 1000) {
-      db.auditLogs = db.auditLogs.slice(0, 1000);
-    }
-    saveDatabase(db);
   }
+  return dbPromise;
+}
+
+// Middleware to ensure DB is loaded before handling any API request
+app.use(async (req, res, next) => {
+  if (req.path.startsWith("/api")) {
+    try {
+      await ensureDbLoaded();
+    } catch (err) {
+      console.error("[SL-TECHCO] DB load failed in middleware, using local fallback:", err);
+    }
+  }
+  next();
+});
+
+// Helper to add audit logs
+async function logActivity(action: string, details: string, adminName: string) {
+  db.auditLogs.unshift({
+    id: "log-" + crypto.randomUUID().substring(0, 8),
+    action,
+    details,
+    admin_name: adminName,
+    created_at: new Date().toISOString(),
+  });
+  // Keep last 1000 logs
+  if (db.auditLogs.length > 1000) {
+    db.auditLogs = db.auditLogs.slice(0, 1000);
+  }
+  await saveDatabase(db);
+}
 
   // --- API ROUTES ---
 
@@ -1729,25 +1757,31 @@ async function startServer() {
   });
 
   // --- VITE DEV / PRODUCTION FLOW ---
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+  // Export app for Vercel Serverless Function support
+  export default app;
+
+  async function initServer() {
+    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
+
+    if (!process.env.VERCEL) {
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`[SL-TECHCO Server] Running on http://localhost:${PORT}`);
+      });
+    }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[SL-TECHCO Server] Running on http://localhost:${PORT}`);
+  initServer().catch((err) => {
+    console.error("Failed to start SL-TECHCO server:", err);
   });
-}
-
-startServer().catch((err) => {
-  console.error("Failed to start SL-TECHCO server:", err);
-});
