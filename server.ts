@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
+import { WebSocketServer, WebSocket } from "ws";
 
 // Drizzle SQL Database imports
 import { db as sqlDb } from "./src/db/index.ts";
@@ -513,6 +514,112 @@ async function saveToCloudSQL(data: DBSchema) {
   }
 }
 
+// --- WEBSOCKET CLIENT REGISTRY & BROADCAST HELPERS ---
+interface ConnectedClient {
+  ws: WebSocket;
+  type: "admin" | "student" | "unknown";
+  studentId?: string;
+}
+
+const connectedClients = new Set<ConnectedClient>();
+
+function broadcastToAdmins(event: string, data: any) {
+  const payload = JSON.stringify({ event, data });
+  for (const client of connectedClients) {
+    if (client.type === "admin" && client.ws.readyState === WebSocket.OPEN) {
+      try { client.ws.send(payload); } catch (_) {}
+    }
+  }
+}
+
+function broadcastToStudents(event: string, data: any) {
+  const payload = JSON.stringify({ event, data });
+  for (const client of connectedClients) {
+    if (client.type === "student" && client.ws.readyState === WebSocket.OPEN) {
+      try { client.ws.send(payload); } catch (_) {}
+    }
+  }
+}
+
+function sendToStudent(studentId: string, event: string, data: any) {
+  const payload = JSON.stringify({ event, data });
+  for (const client of connectedClients) {
+    if (client.type === "student" && client.studentId === studentId && client.ws.readyState === WebSocket.OPEN) {
+      try { client.ws.send(payload); } catch (_) {}
+    }
+  }
+}
+
+function broadcastToAll(event: string, data: any) {
+  const payload = JSON.stringify({ event, data });
+  for (const client of connectedClients) {
+    if (client.ws.readyState === WebSocket.OPEN) {
+      try { client.ws.send(payload); } catch (_) {}
+    }
+  }
+}
+
+let wss: WebSocketServer | null = null;
+
+function setupWebSocketServer(server: any) {
+  wss = new WebSocketServer({ server });
+  
+  wss.on("connection", (ws: WebSocket) => {
+    const client: ConnectedClient = {
+      ws,
+      type: "unknown",
+    };
+    connectedClients.add(client);
+    console.log("[WS] New client connected. Total clients:", connectedClients.size);
+
+    // Send connection ACK
+    ws.send(JSON.stringify({ event: "connected", data: { message: "Connected to SL-TECHCO Real-time Server" } }));
+
+    // Send periodic ping to maintain connection (Vite dev server or proxy timeout protection)
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        try { ws.ping(); } catch (_) {}
+      }
+    }, 30000);
+
+    ws.on("message", (messageStr: string) => {
+      try {
+        const msg = JSON.parse(messageStr.toString());
+        if (msg.event === "register") {
+          if (msg.data.role === "admin") {
+            client.type = "admin";
+            console.log("[WS] Client registered as ADMIN");
+            ws.send(JSON.stringify({ event: "registered", data: { status: "success", role: "admin" } }));
+          } else if (msg.data.role === "student" && msg.data.studentId) {
+            client.type = "student";
+            client.studentId = msg.data.studentId;
+            console.log(`[WS] Client registered as STUDENT (ID: ${msg.data.studentId})`);
+            ws.send(JSON.stringify({ event: "registered", data: { status: "success", role: "student" } }));
+          }
+        } else if (msg.event === "ping") {
+          ws.send(JSON.stringify({ event: "pong" }));
+        }
+      } catch (err) {
+        console.error("[WS] Message parsing error:", err);
+      }
+    });
+
+    ws.on("close", () => {
+      clearInterval(pingInterval);
+      connectedClients.delete(client);
+      console.log("[WS] Client disconnected. Total remaining clients:", connectedClients.size);
+    });
+
+    ws.on("error", (err) => {
+      clearInterval(pingInterval);
+      connectedClients.delete(client);
+      console.error("[WS] Client error:", err);
+    });
+  });
+
+  console.log("[WS] WebSocket Server initialized alongside Express");
+}
+
 // Atomic local & Cloud SQL database write
 async function saveDatabase(data: DBSchema): Promise<void> {
   const tempFile = `${DB_FILE}.tmp`;
@@ -531,6 +638,28 @@ async function saveDatabase(data: DBSchema): Promise<void> {
     await saveToCloudSQL(data);
   } catch (err) {
     console.error("[Cloud SQL] Save failed:", err);
+  }
+
+  // Broadcast real-time updates to connected clients
+  try {
+    const totalStudents = data.students.length;
+    const todayStr = new Date().toISOString().substring(0, 10);
+    const todaysRegistrations = data.students.filter((s) => s.registration_date === todayStr).length;
+    const totalPvcGenerated = data.lastPvcIdNumber;
+
+    broadcastToAdmins("stats_updated", {
+      totalStudents,
+      todaysRegistrations,
+      totalPvcGenerated,
+    });
+
+    broadcastToAdmins("recent_students_updated", data.students.slice(-5).reverse());
+    broadcastToAdmins("audit_logs_updated", data.auditLogs.slice(0, 100));
+
+    // Also update student notification badges / assignments
+    broadcastToAll("db_synced", { timestamp: new Date().toISOString() });
+  } catch (wsErr) {
+    console.error("[WS] Failed to broadcast state update:", wsErr);
   }
 }
 
@@ -1776,9 +1905,10 @@ async function logActivity(action: string, details: string, adminName: string) {
     }
 
     if (!process.env.VERCEL) {
-      app.listen(PORT, "0.0.0.0", () => {
+      const server = app.listen(PORT, "0.0.0.0", () => {
         console.log(`[SL-TECHCO Server] Running on http://localhost:${PORT}`);
       });
+      setupWebSocketServer(server);
     }
   }
 
