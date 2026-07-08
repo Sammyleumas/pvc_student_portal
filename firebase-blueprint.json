@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "student": {
+      "title": "Student",
+      "description": "Student candidate for SL-TECHCO Academy",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique student identifier" },
+        "pvc_id": { "type": "string", "description": "Candidate PVC ID card number" },
+        "full_name": { "type": "string", "description": "Full legal name" },
+        "passport_photo": { "type": "string", "description": "Base64 or URL path to passport photo" },
+        "phone_number": { "type": "string", "description": "Mobile contact number" },
+        "email_address": { "type": "string", "description": "Academic email address" },
+        "registration_date": { "type": "string", "description": "Date of initial enrollment" },
+        "created_at": { "type": "string", "description": "Timestamp when candidate record was created" },
+        "updated_at": { "type": "string", "description": "Timestamp when candidate record was updated" }
+      },
+      "required": ["id", "pvc_id", "full_name", "email_address"]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": "student",
+      "description": "Academy student directory collection"
+    }
+  }
+}

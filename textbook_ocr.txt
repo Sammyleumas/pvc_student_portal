@@ -1,0 +1,186 @@
+SL-TECHCO ACADEMY
+TEXTBOOK: Professional Vibe Coding and AI Development (PVC-AID)
+
+PREFACE
+Welcome to the official textbook for the Professional Vibe Coding and AI Development (PVC-AID) programme offered by SL-TECHCO Academy. This book is designed to be your complete companion throughout the course — from your very first AI-generated webpage all the way to deploying a full SaaS product and building a freelancing career.
+Vibe Coding describes a modern, intuitive approach to software development where you work alongside artificial intelligence rather than writing every line of code yourself. Instead of memorising syntax, you learn to communicate effectively with AI tools, guide them with well-crafted prompts, evaluate their output critically, and assemble production-quality software faster than ever before.
+This textbook covers 14 modules plus a capstone project.
+
+MODULE 1: INTRODUCTION TO VIBE CODING
+- Learning Objectives: Understand Vibe Coding and its origin, compare traditional coding to AI-assisted development, identify benefits and limitations, understand the role of prompt engineering, set up AI workspace, create first AI webpage.
+- Concepts:
+  * Coined by Andrej Karpathy in 2025: "I just vibe code these days - I fully give in to the vibes, embrace not fully understanding all the code, and it mostly works."
+  * Vibe Coding still requires technical knowledge. You must know what good code looks like, how to test it, and how to fix it when it breaks.
+  * Traditional vs Vibe Coding: Traditional learning curve is steep (years of study), Vibe is gentle (natural language first). Traditional speed to prototype is weeks to months, Vibe is hours to days. Traditional debugging is manual, Vibe uses AI assistance. Cost of errors is lower in Vibe.
+  * Benefits of Vibe Coding: speed, accessibility (no formal CS degree needed), rapid exploration, learn by watching AI, focus on business logic and UX rather than syntax, smaller teams can build larger products.
+  * Limitations of Vibe Coding: hallucinations (AI generates buggy code that looks correct), security gaps, over-reliance (cannot debug or improve if you don't understand), context limits, unpredictability, IP debates.
+  * AI Workspace: Browser (Chrome/Firefox), AI Chat Tools (ChatGPT, Claude, Gemini), Code Editor (VS Code), Extensions (Prettier, Live Server, GitLens), Version Control (Git/GitHub), Cursor AI.
+- Module 1 Assignment: Create a complete personal profile webpage using AI assistance. Your page must include: a professional header with your name and photo placeholder, an About Me section, a Skills section, a Projects section (at least 2 imaginary or real projects), and a styled Contact form. Save as a single HTML file.
+
+MODULE 2: AI TOOLS FOR VIBE CODING
+- Learning Objectives: Understand strengths of major AI tools, compare outputs, choose the right AI tool, generate and evaluate code.
+- Tools Overview:
+  * ChatGPT (OpenAI): Most widely used. GPT-4o is excellent for code generation, explanation, debugging, and has strong plugins. Best for: general coding, debugging, content creation, code explanation.
+  * Claude (Anthropic): Known for long document handling, nuanced reasoning, and writing quality. Claude 3.5 Sonnet excels at complex multi-file coding tasks and understanding large codebases. Best for: large project coding, technical writing, code review.
+  * Gemini AI (Google): Flagship AI with strong Google Workspace integration. Gemini 1.5 Pro has the largest context window of any consumer model. Best for: Google-ecosystem tasks, research, multimodal inputs.
+  * DeepSeek AI: Chinese AI that rivals GPT-4 at coding tasks. DeepSeek Coder is specifically optimized for programming and is free to use. Best for: code generation, algorithmic problems, free alternative.
+  * Grok AI (xAI): Elon Musk's AI integrated with X. Has real-time internet access, humorous/direct communication. Best for: real-time info, brainstorming, social media.
+  * Microsoft Copilot: Powered by GPT-4, integrated with Microsoft 365. Best for: office document automation, business writing, Bing search.
+  * Perplexity AI: Research-focused AI that cites sources. Best for: research, fact-checking, finding documentation, current events.
+  * Cursor AI: VS Code fork with built-in AI. Can highlight code and ask questions, edit in-context. Best for: in-editor coding assistance, refactoring, whole-project context.
+  * GitHub Copilot: AI pair programmer, VS Code extension. Best for: autocomplete, boilerplate code, in-editor suggestions.
+- Module 2 Assignment: Build a simple calculator (addition, subtraction, multiplication, division) using AI-generated HTML, CSS, and JavaScript. Generate the same calculator using at least TWO different AI tools. Compare the code quality, style, and functionality. Write a short paragraph (150 words) comparing your experience with each tool.
+
+MODULE 3: PROMPT ENGINEERING FOR DEVELOPERS
+- Learning Objectives: Understand the anatomy of a high-quality prompt, apply context, chain-of-thought, and few-shot prompting, use iterative prompting, debug through prompts, build library of templates.
+- Anatomy of a Good Prompt:
+  1. Role Assignment: Tell AI who it is ("Act as a senior React developer...").
+  2. Task Description: State the task in one clear sentence ("Create a responsive product card component...").
+  3. Context: Provide relevant background ("This is for an e-commerce site targeting Nigerian shoppers...").
+  4. Constraints: Define what the AI must NOT do ("Do not use any CSS frameworks. Write plain CSS only.").
+  5. Output Format: Specify output format ("Return only the HTML and CSS. Do not add explanations.").
+  6. Examples (Optional): Show reference/example ("Like this: [code]").
+  7. Quality Bar: State the standard ("The code must be clean, commented, and follow BEM...").
+- Prompting Techniques:
+  * Context Prompting: Provide rich background information before asking.
+  * Chain-of-Thought Prompting: Ask AI to reason step-by-step before generating code ("Before writing any code, think step by step...").
+  * Few-Shot Prompting: Provide 2-3 examples of the input-output pattern you want.
+  * Iterative Prompting: Start with a rough version and refine through follow-up prompts.
+  * Debugging through prompts: Paste code with bug and a clear description of the error.
+- Reusable Templates: New Component, Bug Fix, Code Review, Feature Addition, API Integration.
+- Module 3 Assignment: Develop a personal library of 20 reusable coding prompt templates. Your templates must cover at least: 5 for frontend development, 3 for backend/database tasks, 3 for debugging, 3 for code review/refactoring, 3 for mobile app development, and 3 of your own design.
+
+MODULE 4: WEB DEVELOPMENT WITH AI
+- Learning Objectives: Understand HTML, CSS, JS fundamentals; use AI to build responsive websites efficiently; create landing pages/portfolios; understand responsive design; build and deploy complete business website.
+- Concepts:
+  * HTML: HyperText Markup Language, the skeleton of every webpage.
+  * CSS: Cascading Style Sheets, controls how elements look (colors, fonts, spacing, layout, animations). Use Flexbox and Grid.
+  * JS: JavaScript, adds interactivity (responding to clicks, fetching data, animating elements, validating forms).
+  * Responsive Design: Must look good on all screen sizes. Over 70% of traffic in Nigeria comes from mobile. Use relative units (%, em, rem, vw, vh), Flexbox/Grid, media queries (@media), viewport meta tag, design mobile-first, and test on real devices.
+  * AI-Assisted Frontend Workflow: 1. Plan site (wireframe), 2. Write detailed prompt, 3. Generate initial HTML/CSS/JS, 4. Review generated code, 5. Test in browser using Live Server, 6. Iteratively refine, 7. Optimize for mobile, 8. Deploy.
+- Module 4 Project: Build a fully responsive company website with the following sections: Navigation bar with logo and menu links, Hero section with headline, subheading, and two CTA buttons, About Us section, Services section (6 cards), Team section, Testimonials section, and Contact form. The site must work perfectly on mobile and desktop. Use AI for all code generation but make at least 10 manual modifications to personalise it.
+
+MODULE 5: NO-CODE AND LOW-CODE DEVELOPMENT
+- Learning Objectives: Understand no-code and low-code platforms and their use cases, build apps on Bubble, FlutterFlow, and related platforms, create CRM and management systems visually, understand when to use no-code vs custom code.
+- Platforms Overview:
+  * Bubble (bubble.io) [Complex]: Full web app builder. Handles frontend, backend, and database in one place. Best for complex web apps, marketplaces, and SaaS.
+  * FlutterFlow (flutterflow.io) [Medium]: Visual mobile app builder using Flutter framework. Generates real Dart code. Best for cross-platform iOS/Android apps.
+  * Softr (softr.io) [Easy]: Build web apps and portals connected to Airtable or Google Sheets. Fastest way to turn data into web app.
+  * Glide (glideapps.com) [Easy]: Turn Google Sheets or Excel data into mobile apps. Perfect for internal/small business apps.
+  * Adalo (adalo.com) [Easy]: Drag-and-drop mobile/web app builder with built-in database. Good for simple data models.
+  * Airtable (airtable.com) [Easy]: Spreadsheet-database hybrid. Connects to other tools, acts as data layer.
+- When to Use No-Code vs Custom Code:
+  * Tight deadline/MVP: No-Code preferred.
+  * Unique complex logic: Custom Code preferred.
+  * Non-technical founder: No-Code preferred.
+  * Highly scalable product: Custom Code preferred (No-code is risky).
+  * Internal business tool: No-Code preferred.
+  * Full design control: Custom Code preferred.
+  * Budget constraints: No-Code preferred.
+- Module 5 Assignment: Build a Student Registration App using a no-code platform of your choice (Glide, Adalo, or Bubble). The app must allow: adding new student records (name, age, course, email), viewing all registered students in a list, searching/filtering students by course, and deleting a student record. Submit screenshots or screen-record.
+
+MODULE 6: UI/UX DESIGN WITH AI
+- Learning Objectives: Understand core UI design principles, apply UX fundamentals, create wireframes and prototypes, use Figma, leverage AI design tools.
+- UI Design Principles:
+  * Visual Hierarchy: Use size, color, position to guide eyes. Headlines are larger, CTAs are bold/colored.
+  * Consistency: Use same fonts, colors, spacing, and component styles throughout.
+  * Whitespace: Gives design room to breathe, improves readability.
+  * Contrast: Ensure sufficient contrast (min 4.5:1 ratio for normal text).
+  * Alignment: Align elements to a grid to avoid looking unprofessional.
+  * Colour Theory: Max 3 colors (primary, secondary, accent) plus neutrals.
+  * Typography: Choose max 2 fonts (headings vs body), consistent sizes, weights, heights.
+- UX Fundamentals: User Research, User Personas, User Flows (sign up -> browse -> add to cart -> checkout), Information Architecture, Accessibility, Usability Testing.
+- AI Design Tools: Figma, Canva, Uizard (UI from text/sketches), Galileo AI (production-ready Figma designs from prompts).
+- Module 6 Project: Design a Banking App Interface in Figma covering: Splash/Login screen, Dashboard (balance, recent transactions, quick actions), Send Money flow (3 screens), and Transaction History screen. Apply all UI principles. Export as clickable prototype and share Figma link.
+
+MODULE 7: MOBILE APP DEVELOPMENT WITH AI
+- Learning Objectives: Understand mobile development fundamentals, build cross-platform apps with FlutterFlow, implement app navigation and auth, integrate APIs, publish to Play Store and App Store.
+- Mobile Development Basics:
+  * Native Apps (Swift/Kotlin): High performance, full platform access. Expensive, two codebases.
+  * Cross-Platform (Flutter/React Native): Single codebase, near-native performance. Minor platform differences.
+  * Progressive Web Apps (PWA): Browser-based, behavior like apps. No app store, instant updates. Limited hardware access.
+- Authentication Systems: Email/Password, Google Sign-In, Phone Number (OTP - common in Nigerian apps), Apple Sign-In, Biometric Auth.
+- Module 7 Project: Develop a complete Business Mobile App using FlutterFlow. The app must include: Onboarding screens (3 slides), Login and Sign Up with Firebase Auth, a Home Dashboard, a Products/Services listing screen, a Detail screen, and a Profile screen. Test on both Android and iOS layouts. Submit screenshots.
+
+MODULE 8: DATABASES AND BACKEND DEVELOPMENT
+- Learning Objectives: Understand what databases are, set up and use Firebase/Supabase, understand MySQL, implement user authentication and data storage, create/consume REST APIs, build membership management system.
+- Database Types:
+  * Relational (SQL): Stored in tables with rows and columns. Examples: MySQL, PostgreSQL. Best for structured data, complex queries.
+  * NoSQL Document: Stored as JSON-like documents. Flexible schema. Examples: MongoDB, Firestore. Best for fast development.
+  * Realtime Database: Syncs instantly across clients. Example: Firebase Realtime DB. Best for chat, live dashboards.
+  * Hosted BaaS (Backend-as-a-Service): Auth, storage, database in one platform. Examples: Firebase, Supabase. Best for rapid development, no server management.
+- Firebase: Google's platform. Features: Firestore, Realtime Database, Storage, Hosting, Cloud Functions, Analytics.
+- Supabase: Open-source alternative built on PostgreSQL. Real relational SQL with BaaS convenience.
+- Module 8 Project: Create a Membership Management System with features: User registration (name, email, phone, membership plan), Login/logout, Dashboard showing all members, ability to activate/deactivate members, and search. Use Firebase or Supabase as backend. Build frontend as web app.
+
+MODULE 9: AUTOMATION WITH AI
+- Learning Objectives: Understand workflow automation, build automations with Zapier and Make.com, create AI agents, set up CRM, WhatsApp, and email automation, build customer service chatbot.
+- Workflow Automation: Trigger -> Action(s).
+  * Zapier: Popular, connects 6000+ apps.
+  * Make.com: Visual flowchart interface, multi-step.
+  * n8n: Open-source, self-hostable.
+- AI Agents: Systems that perceive environments, make decisions, and take actions autonomously.
+  * Lead Qualification Agent: Monitors inbox, researches leads, scores them, updates CRM.
+  * Customer Support Agent: Reads WhatsApp, answers using AI or routes to human.
+  * Content Agent: Monitors competitor blogs, summarizes articles, drafts responses.
+  * Report Agent: Pulls data, generates Friday summary reports, emails team.
+- Module 9 Project: Build an AI Customer Service Agent. It must: monitor a form or email inbox for customer inquiries, use an AI model (ChatGPT or Claude API) to generate appropriate responses, send automatic replies, and log all interactions to a Google Sheet or database. Use Make.com or Zapier.
+
+MODULE 10: AI CONTENT CREATION & DIGITAL PRODUCTS
+- Learning Objectives: Generate images, videos, voice content with AI; create e-books and online courses; automate social media content creation; package AI skills into digital products.
+- Tools:
+  * AI Image Gen: Midjourney, Leonardo AI, DALL-E 3, Adobe Firefly.
+  * AI Video Gen: Runway ML, CapCut, HeyGen, Synthesia.
+  * AI Voice Gen: ElevenLabs, Murf AI, PlayHT.
+- Digital Products with AI: E-Books (ChatGPT + Canva), Online Courses, Templates & Tools (Notion templates, Excel trackers), Prompt Packs (curated prompt libraries).
+- Module 10 Project: Create a complete digital product. Options: (a) An e-book of at least 3,000 words on a technology topic of your choice, with AI-generated content and Canva design. (b) A 5-lesson mini video course recorded and edited with AI tools. (c) A branded prompt pack of 50+ curated prompts for a specific niche. Submit the finished product.
+
+MODULE 11: SAAS DEVELOPMENT WITH AI
+- Learning Objectives: Understand SaaS business models and metrics, build user dashboards and subscription systems, integrate payment gateways, manage users/permissions, launch a mini SaaS.
+- Concepts:
+  * SaaS: Software as a Service. Nigerian examples: Paystack, Flutterwave, PiggyVest.
+  * Business Models: Freemium (Canva, Notion), Subscription (Spotify, Creative Cloud), Per-Seat (Slack, Zoom), Usage-Based (AWS, Twilio), One-Time Purchase.
+  * Core Components: Landing Page, Auth System, User Dashboard, Subscription/Payment (Paystack for Nigeria, Stripe international), Admin Panel, Email System (SendGrid/Mailgun).
+- Module 11 Project: Develop a Mini SaaS Product: an AI Writing Tool. Features: User registration and login, a text input where users type what they want to write (e.g., blog post, email, social caption), integration with ChatGPT or Claude API to generate the content, the ability to save and view past generations, and a simple pricing page.
+
+MODULE 12: DEPLOYMENT AND LAUNCHING
+- Learning Objectives: Understand domain names and hosting, deploy websites, publish mobile apps, configure custom domains, deploy complete website and mobile app.
+- Hosting Options:
+  * Vercel: Best for React, Next.js, frontend. Automatic HTTPS, global CDN.
+  * Netlify: Great for static sites, drag-and-drop deploy.
+  * Firebase Hosting: Best for Firebase projects, simple CLI deployment.
+  * Render: Best for full-stack apps, Node.js, Python, databases.
+  * Hostinger: Best for WordPress, PHP sites, affordable.
+- Play Store Publishing: Google Play Developer account ($25), FlutterFlow APK/AAB build, Store listing, Content rating, review, live.
+- Module 12 Project: Deploy a Complete Website AND Mobile App. Website: deploy your Module 4 company website to Vercel or Netlify with a custom domain. Mobile App: publish your Module 7 app to the Play Store. Document with screenshots.
+
+MODULE 13: FREELANCING & CLIENT ACQUISITION
+- Learning Objectives: Build a professional freelancing portfolio, create profiles on Upwork/Fiverr/LinkedIn, write proposals, communicate with clients, price services correctly.
+- Portfolio: Include 5-8 of your best projects, describe problems/solutions/tools, show before/after, include live demos/GitHub, testimonials, professional layout.
+- Proposal Template: Subject, Client Name, Restate problem, Specific 3-step plan, Similar work, Timeline, Investment, Quick expert question, Call to action.
+- Pricing Services:
+  * Simple Landing Page: 30,000 - 50,000 Naira (Beginner) | 80,000 - 150,000 Naira (Intermediate) | 200,000+ Naira (Expert).
+  * Business Website (5-10 pages): 80,000 - 150,000 Naira | 200,000 - 400,000 Naira | 500,000+ Naira.
+  * Mobile App (Basic): 150,000 - 250,000 Naira | 350,000 - 600,000 Naira | 800,000+ Naira.
+  * E-Commerce Site: 200,000 - 350,000 Naira | 400,000 - 700,000 Naira | 1,000,000+ Naira.
+- Module 13 Assignment: Complete all three: (1) Create a professional freelancer profile on Fiverr with at least 3 service gigs. (2) Create an Upwork profile with a completed profile score above 80%. (3) Optimise your LinkedIn profile for your developer skills. Submit screenshots of all three profiles.
+
+MODULE 14: ADVANCED AI AGENTS & PROFESSIONAL VIBE CODING
+- Learning Objectives: Understand AI agents and multi-agent systems, work with OpenAI, Claude, and Gemini APIs, implement RAG (Retrieval-Augmented Generation) systems, understand MCP (Model Context Protocol), build AI Business Assistant, understand startups.
+- AI Agent: perceives environment, makes decisions, takes actions autonomously.
+- RAG: Retrieval-Augmented Generation. 1. Collect docs, 2. Split into chunks (500 words), 3. Convert chunks into embeddings, 4. Store in vector DB, 5. Semantic similarity search, 6. Pass chunks as context to AI.
+- MCP (Model Context Protocol): Standard developed by Anthropic allowing AI models to connect to external tools/data sources (GitHub, Google Drive, Slack, databases).
+- Module 14 Project: Build a Complete AI Business Assistant. It must: accept natural language requests ('summarise my sales data', 'draft a follow-up email for this lead'), use an AI API to process requests, connect to at least one external data source (Google Sheets, a database, or a web API), maintain conversation history, and have a clean chat interface.
+
+CAPSTONE PROJECT
+The final requirement for the Professional Vibe Coding and AI Development (PVC-AID) certification.
+- Options:
+  1. School Management System: User auth, student records, classes, grades, attendance, teacher portal, parent portal, report generation.
+  2. Hospital Management System: Patient registration, appointment scheduling, medical records, pharmacy module, billing, doctor/staff management.
+  3. AI Chatbot: Custom-trained FAQ bot using RAG, handles 50+ topics.
+  4. E-Commerce Platform: Catalog, cart, checkout with Paystack, order management, seller dashboard, buyer reviews.
+  5. Hotel Booking Platform: Property listings, room availability calendar, online booking/payment, guest management, admin dashboard.
+  6. Learning Management System: Course creation, video lessons, quizzes, progress tracking, certificates, instructor analytics.
+  7. Business Automation SaaS: Subscription-based tool automating a process, landing page, auth, dashboard, Paystack billing.
+  8. Real Estate Management System: Property listings, search/filter, agent profiles, inquiry forms, property comparison tool.
+- Requirements: Complete all 14 modules, submit capstone, provide GitHub, present to panel, score at least 70% on final written assessment, submit 2-page report.
