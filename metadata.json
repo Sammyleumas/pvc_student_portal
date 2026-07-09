@@ -1,5 +1,5 @@
 {
-  "name": "SL-TECHCO ACADEMY PVC Student ID Management System",
+  "name": "SL-TECHCO PVC Student ID Portal",
   "description": "A modern web application for SL-TECHCO ACADEMY to register students, generate sequential unique PVC IDs, and print professional CR80 student ID cards with QR codes.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
