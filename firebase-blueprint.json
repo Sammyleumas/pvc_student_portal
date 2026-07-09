@@ -16,12 +16,125 @@
         "updated_at": { "type": "string", "description": "Timestamp when candidate record was updated" }
       },
       "required": ["id", "pvc_id", "full_name", "email_address"]
+    },
+    "admin": {
+      "title": "Admin",
+      "description": "Administrator or Staff user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique admin identifier" },
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "description": "Email address" },
+        "passwordHash": { "type": "string", "description": "Hashed password" },
+        "role": { "type": "string", "enum": ["Administrator", "Staff"] },
+        "created_at": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "name", "email", "passwordHash", "role", "created_at"]
+    },
+    "auditLog": {
+      "title": "AuditLog",
+      "description": "System activity audit trail",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "admin_name": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "action", "details", "admin_name", "created_at"]
+    },
+    "quiz": {
+      "title": "Quiz",
+      "description": "Academic quiz for students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "student_id": { "type": "string" },
+        "date": { "type": "string" },
+        "questions": { "type": "array" },
+        "answers": { "type": "array" },
+        "score": { "type": "number" },
+        "feedback": { "type": "string" },
+        "submitted_at": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "student_id", "date", "questions", "created_at"]
+    },
+    "submission": {
+      "title": "Submission",
+      "description": "Student homework/assignment submission",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "student_id": { "type": "string" },
+        "student_name": { "type": "string" },
+        "pvc_id": { "type": "string" },
+        "title": { "type": "string" },
+        "submission_link": { "type": "string" },
+        "comments": { "type": "string" },
+        "score": { "type": "number" },
+        "feedback": { "type": "string" },
+        "submitted_at": { "type": "string" },
+        "graded_at": { "type": "string" },
+        "graded_by": { "type": "string" }
+      },
+      "required": ["id", "student_id", "student_name", "pvc_id", "title", "submission_link", "submitted_at"]
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Global application settings",
+      "type": "object",
+      "properties": {
+        "notifyOnAIGrading": { "type": "boolean" },
+        "activeStudyModule": { "type": "string" }
+      },
+      "required": ["notifyOnAIGrading", "activeStudyModule"]
+    },
+    "notification": {
+      "title": "Notification",
+      "description": "System or study preparation alert",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "student_id": { "type": "string" },
+        "type": { "type": "string", "enum": ["ai_grading", "study_prep", "info"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "student_id", "type", "title", "message", "read", "created_at"]
     }
   },
   "firestore": {
     "/students/{studentId}": {
       "schema": "student",
       "description": "Academy student directory collection"
+    },
+    "/admins/{adminId}": {
+      "schema": "admin",
+      "description": "Admins and staff registry"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "auditLog",
+      "description": "System activity logs"
+    },
+    "/quizzes/{quizId}": {
+      "schema": "quiz",
+      "description": "Assigned and submitted student quizzes"
+    },
+    "/submissions/{submissionId}": {
+      "schema": "submission",
+      "description": "Student homework submissions"
+    },
+    "/settings/{settingsId}": {
+      "schema": "settings",
+      "description": "System global configuration settings"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "notification",
+      "description": "Course announcements and system notifications"
     }
   }
 }

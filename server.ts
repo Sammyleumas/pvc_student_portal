@@ -7,21 +7,8 @@ import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
 import { WebSocketServer, WebSocket } from "ws";
 
-// Drizzle SQL Database imports
-import { db as sqlDb } from "./src/db/index.ts";
-import {
-  students as sqlStudents,
-  admins as sqlAdmins,
-  auditLogs as sqlAuditLogs,
-  quizzes as sqlQuizzes,
-  submissions as sqlSubmissions,
-  settings as sqlSettings,
-  notifications as sqlNotifications,
-} from "./src/db/schema.ts";
-import { eq } from "drizzle-orm";
-
 // Firebase Admin SDK
-import { adminAuth } from "./src/lib/firebase-admin.ts";
+import { adminAuth, adminDb } from "./src/lib/firebase-admin.ts";
 
 // ES Module resolution
 const __filename = fileURLToPath(import.meta.url);
@@ -198,37 +185,65 @@ function initDatabase(): DBSchema {
   return loadedDb;
 }
 
-// Synchronize Cloud SQL tables with local/in-memory state
-async function loadFromCloudSQL(): Promise<DBSchema> {
+// Synchronize Firestore tables with local/in-memory state
+async function loadFromFirestore(): Promise<DBSchema> {
   try {
-    console.log("[Cloud SQL] Loading database state...");
+    console.log("[Firestore] Loading database state...");
     const [
-      studentsList,
-      adminsList,
-      auditLogsList,
-      quizzesList,
-      submissionsList,
-      settingsList,
-      notificationsList,
+      studentsSnap,
+      adminsSnap,
+      auditLogsSnap,
+      quizzesSnap,
+      submissionsSnap,
+      settingsSnap,
+      notificationsSnap,
     ] = await Promise.all([
-      sqlDb.select().from(sqlStudents),
-      sqlDb.select().from(sqlAdmins),
-      sqlDb.select().from(sqlAuditLogs),
-      sqlDb.select().from(sqlQuizzes),
-      sqlDb.select().from(sqlSubmissions),
-      sqlDb.select().from(sqlSettings),
-      sqlDb.select().from(sqlNotifications),
+      adminDb.collection("students").get(),
+      adminDb.collection("admins").get(),
+      adminDb.collection("auditLogs").get(),
+      adminDb.collection("quizzes").get(),
+      adminDb.collection("submissions").get(),
+      adminDb.collection("settings").get(),
+      adminDb.collection("notifications").get(),
     ]);
 
-    // If there is no data in Postgres (e.g. fresh database), seed it from db.json
+    const studentsList: DBStudent[] = [];
+    studentsSnap.forEach((doc) => studentsList.push(doc.data() as DBStudent));
+
+    const adminsList: DBAdmin[] = [];
+    adminsSnap.forEach((doc) => adminsList.push(doc.data() as DBAdmin));
+
+    const auditLogsList: DBAuditLog[] = [];
+    auditLogsSnap.forEach((doc) => auditLogsList.push(doc.data() as DBAuditLog));
+
+    const quizzesList: DBDailyQuiz[] = [];
+    quizzesSnap.forEach((doc) => quizzesList.push(doc.data() as DBDailyQuiz));
+
+    const submissionsList: DBSubmission[] = [];
+    submissionsSnap.forEach((doc) => submissionsList.push(doc.data() as DBSubmission));
+
+    const notificationsList: DBNotification[] = [];
+    notificationsSnap.forEach((doc) => notificationsList.push(doc.data() as DBNotification));
+
+    let settingsObj: DBSettings = {
+      notifyOnAIGrading: true,
+      activeStudyModule: "Module 1: Introduction to Vibe Coding",
+    };
+    settingsSnap.forEach((doc) => {
+      if (doc.id === "global_settings") {
+        settingsObj = doc.data() as DBSettings;
+      }
+    });
+
+    // If there is no data in Firestore (e.g. fresh database), seed it from db.json
     if (studentsList.length === 0 && adminsList.length === 0) {
-      console.log("[Cloud SQL] Database is empty. Seeding from local db.json fallback...");
+      console.log("[Firestore] Database is empty. Seeding from local db.json fallback...");
       const localDb = initDatabase();
-      await seedCloudSQL(localDb);
+      await seedFirestore(localDb);
       return localDb;
     }
 
-    console.log(`[Cloud SQL] Successfully loaded records: 
+    console.log(`[Firestore] Successfully loaded records: 
       - Students: ${studentsList.length}
       - Admins: ${adminsList.length}
       - Audit Logs: ${auditLogsList.length}
@@ -264,7 +279,7 @@ async function loadFromCloudSQL(): Promise<DBSchema> {
         title: s.title,
         submission_link: s.submission_link,
         comments: s.comments || undefined,
-        score: s.score !== null ? s.score : undefined,
+        score: s.score !== null && s.score !== undefined ? s.score : undefined,
         feedback: s.feedback || undefined,
         submitted_at: s.submitted_at,
         graded_at: s.graded_at || undefined,
@@ -276,20 +291,12 @@ async function loadFromCloudSQL(): Promise<DBSchema> {
         date: q.date,
         questions: q.questions as DBQuizQuestion[],
         answers: q.answers as number[] || undefined,
-        score: q.score !== null ? q.score : undefined,
+        score: q.score !== null && q.score !== undefined ? q.score : undefined,
         feedback: q.feedback || undefined,
         submitted_at: q.submitted_at || undefined,
         created_at: q.created_at,
       })),
-      settings: settingsList[0] 
-        ? {
-            notifyOnAIGrading: settingsList[0].notifyOnAIGrading,
-            activeStudyModule: settingsList[0].activeStudyModule,
-          }
-        : {
-            notifyOnAIGrading: true,
-            activeStudyModule: "Module 1: Introduction to Vibe Coding",
-          },
+      settings: settingsObj,
       notifications: notificationsList.map(n => ({
         id: n.id,
         student_id: n.student_id,
@@ -301,218 +308,120 @@ async function loadFromCloudSQL(): Promise<DBSchema> {
       })),
     };
   } catch (error) {
-    console.error("[Cloud SQL] Load failed, falling back to local file:", error);
+    console.error("[Firestore] Load failed, falling back to local file:", error);
     return initDatabase();
   }
 }
 
-async function seedCloudSQL(localDb: DBSchema) {
+async function seedFirestore(localDb: DBSchema) {
   try {
-    console.log("[Cloud SQL] Seeding Postgres tables...");
+    console.log("[Firestore] Seeding Firestore collections...");
     
     if (localDb.admins && localDb.admins.length > 0) {
-      await sqlDb.insert(sqlAdmins).values(localDb.admins).onConflictDoNothing();
+      for (const admin of localDb.admins) {
+        await adminDb.collection("admins").doc(admin.id).set(admin);
+      }
     }
     
     if (localDb.students && localDb.students.length > 0) {
-      await sqlDb.insert(sqlStudents).values(localDb.students).onConflictDoNothing();
+      for (const student of localDb.students) {
+        await adminDb.collection("students").doc(student.id).set(student);
+      }
     }
 
     if (localDb.auditLogs && localDb.auditLogs.length > 0) {
-      await sqlDb.insert(sqlAuditLogs).values(localDb.auditLogs).onConflictDoNothing();
+      for (const log of localDb.auditLogs) {
+        await adminDb.collection("auditLogs").doc(log.id).set(log);
+      }
     }
 
     if (localDb.submissions && localDb.submissions.length > 0) {
-      const sanitizedSubmissions = localDb.submissions.map(s => ({
-        id: s.id,
-        student_id: s.student_id,
-        student_name: s.student_name,
-        pvc_id: s.pvc_id,
-        title: s.title,
-        submission_link: s.submission_link,
-        comments: s.comments || null,
-        score: s.score !== undefined ? s.score : null,
-        feedback: s.feedback || null,
-        submitted_at: s.submitted_at,
-        graded_at: s.graded_at || null,
-        graded_by: s.graded_by || null,
-      }));
-      await sqlDb.insert(sqlSubmissions).values(sanitizedSubmissions).onConflictDoNothing();
+      for (const s of localDb.submissions) {
+        await adminDb.collection("submissions").doc(s.id).set(s);
+      }
     }
 
     if (localDb.quizzes && localDb.quizzes.length > 0) {
-      const sanitizedQuizzes = localDb.quizzes.map(q => ({
-        id: q.id,
-        student_id: q.student_id,
-        date: q.date,
-        questions: q.questions,
-        answers: q.answers || null,
-        score: q.score !== undefined ? q.score : null,
-        feedback: q.feedback || null,
-        submitted_at: q.submitted_at || null,
-        created_at: q.created_at,
-      }));
-      await sqlDb.insert(sqlQuizzes).values(sanitizedQuizzes).onConflictDoNothing();
+      for (const q of localDb.quizzes) {
+        await adminDb.collection("quizzes").doc(q.id).set(q);
+      }
     }
 
     const currentSettings = localDb.settings || {
       notifyOnAIGrading: true,
       activeStudyModule: "Module 1: Introduction to Vibe Coding",
     };
-    await sqlDb.insert(sqlSettings).values({
-      id: "global_settings",
-      notifyOnAIGrading: currentSettings.notifyOnAIGrading,
-      activeStudyModule: currentSettings.activeStudyModule,
-    }).onConflictDoNothing();
+    await adminDb.collection("settings").doc("global_settings").set(currentSettings);
 
     if (localDb.notifications && localDb.notifications.length > 0) {
-      await sqlDb.insert(sqlNotifications).values(localDb.notifications).onConflictDoNothing();
+      for (const n of localDb.notifications) {
+        await adminDb.collection("notifications").doc(n.id).set(n);
+      }
     }
 
-    console.log("[Cloud SQL] Seeding complete successfully.");
+    console.log("[Firestore] Seeding complete successfully.");
   } catch (error) {
-    console.error("[Cloud SQL] Seeding failed:", error);
+    console.error("[Firestore] Seeding failed:", error);
   }
 }
 
-async function saveToCloudSQL(data: DBSchema) {
+async function saveToFirestore(data: DBSchema) {
   try {
-    console.log("[Cloud SQL] Background synchronization started...");
+    console.log("[Firestore] Background synchronization started...");
 
     // Upsert admins
     if (data.admins && data.admins.length > 0) {
       for (const admin of data.admins) {
-        await sqlDb.insert(sqlAdmins).values(admin).onConflictDoUpdate({
-          target: sqlAdmins.id,
-          set: {
-            name: admin.name,
-            email: admin.email,
-            passwordHash: admin.passwordHash,
-            role: admin.role,
-          }
-        });
+        await adminDb.collection("admins").doc(admin.id).set(admin);
       }
     }
 
     // Upsert students
     if (data.students && data.students.length > 0) {
       for (const student of data.students) {
-        await sqlDb.insert(sqlStudents).values(student).onConflictDoUpdate({
-          target: sqlStudents.id,
-          set: {
-            pvc_id: student.pvc_id,
-            full_name: student.full_name,
-            passport_photo: student.passport_photo,
-            phone_number: student.phone_number,
-            email_address: student.email_address,
-            registration_date: student.registration_date,
-            updated_at: student.updated_at,
-          }
-        });
+        await adminDb.collection("students").doc(student.id).set(student);
       }
     }
 
     // Upsert audit logs
     if (data.auditLogs && data.auditLogs.length > 0) {
       for (const log of data.auditLogs) {
-        await sqlDb.insert(sqlAuditLogs).values(log).onConflictDoNothing();
+        await adminDb.collection("auditLogs").doc(log.id).set(log);
       }
     }
 
     // Upsert submissions
     if (data.submissions && data.submissions.length > 0) {
       for (const s of data.submissions) {
-        await sqlDb.insert(sqlSubmissions).values({
-          id: s.id,
-          student_id: s.student_id,
-          student_name: s.student_name,
-          pvc_id: s.pvc_id,
-          title: s.title,
-          submission_link: s.submission_link,
-          comments: s.comments || null,
-          score: s.score !== undefined ? s.score : null,
-          feedback: s.feedback || null,
-          submitted_at: s.submitted_at,
-          graded_at: s.graded_at || null,
-          graded_by: s.graded_by || null,
-        }).onConflictDoUpdate({
-          target: sqlSubmissions.id,
-          set: {
-            score: s.score !== undefined ? s.score : null,
-            feedback: s.feedback || null,
-            graded_at: s.graded_at || null,
-            graded_by: s.graded_by || null,
-          }
-        });
+        await adminDb.collection("submissions").doc(s.id).set(s);
       }
     }
 
     // Upsert quizzes
     if (data.quizzes && data.quizzes.length > 0) {
       for (const q of data.quizzes) {
-        await sqlDb.insert(sqlQuizzes).values({
-          id: q.id,
-          student_id: q.student_id,
-          date: q.date,
-          questions: q.questions,
-          answers: q.answers || null,
-          score: q.score !== undefined ? q.score : null,
-          feedback: q.feedback || null,
-          submitted_at: q.submitted_at || null,
-          created_at: q.created_at,
-        }).onConflictDoUpdate({
-          target: sqlQuizzes.id,
-          set: {
-            questions: q.questions,
-            answers: q.answers || null,
-            score: q.score !== undefined ? q.score : null,
-            feedback: q.feedback || null,
-            submitted_at: q.submitted_at || null,
-          }
-        });
+        await adminDb.collection("quizzes").doc(q.id).set(q);
       }
     }
 
     // Upsert settings
     if (data.settings) {
-      await sqlDb.insert(sqlSettings).values({
-        id: "global_settings",
-        notifyOnAIGrading: data.settings.notifyOnAIGrading,
-        activeStudyModule: data.settings.activeStudyModule,
-      }).onConflictDoUpdate({
-        target: sqlSettings.id,
-        set: {
-          notifyOnAIGrading: data.settings.notifyOnAIGrading,
-          activeStudyModule: data.settings.activeStudyModule,
-        }
-      });
+      await adminDb.collection("settings").doc("global_settings").set(data.settings);
     }
 
     // Upsert notifications
     if (data.notifications && data.notifications.length > 0) {
       for (const n of data.notifications) {
-        await sqlDb.insert(sqlNotifications).values({
-          id: n.id,
-          student_id: n.student_id,
-          type: n.type,
-          title: n.title,
-          message: n.message,
-          read: n.read,
-          created_at: n.created_at,
-        }).onConflictDoUpdate({
-          target: sqlNotifications.id,
-          set: {
-            read: n.read,
-          }
-        });
+        await adminDb.collection("notifications").doc(n.id).set(n);
       }
     }
 
-    console.log("[Cloud SQL] Sync complete successfully.");
+    console.log("[Firestore] Sync complete successfully.");
   } catch (err) {
-    console.error("[Cloud SQL] Background save failed:", err);
+    console.error("[Firestore] Background save failed:", err);
   }
 }
+
 
 // --- WEBSOCKET CLIENT REGISTRY & BROADCAST HELPERS ---
 interface ConnectedClient {
@@ -633,11 +542,11 @@ async function saveDatabase(data: DBSchema): Promise<void> {
     }
   }
 
-  // Await Cloud SQL write to ensure persistence on Vercel
+  // Await Firestore write to ensure persistence on Vercel
   try {
-    await saveToCloudSQL(data);
+    await saveToFirestore(data);
   } catch (err) {
-    console.error("[Cloud SQL] Save failed:", err);
+    console.error("[Firestore] Save failed:", err);
   }
 
   // Broadcast real-time updates to connected clients
@@ -870,7 +779,7 @@ let isDbLoaded = false;
 
 function ensureDbLoaded(): Promise<DBSchema> {
   if (!dbPromise) {
-    dbPromise = loadFromCloudSQL().then((loadedDb) => {
+    dbPromise = loadFromFirestore().then((loadedDb) => {
       db = loadedDb;
       isDbLoaded = true;
       return loadedDb;
