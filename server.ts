@@ -704,41 +704,76 @@ async function startServer() {
     }
   }
 
-  // Student Login Endpoint
-  app.post("/api/auth/student-login", (req, res) => {
-    const { email, credential } = req.body;
-    if (!email || !credential) {
-      res.status(400).json({ error: "Email address and PVC ID / Phone Number are required" });
+  // Student Login Endpoint (Passwordless, Email-only, with Auto-registration)
+  app.post("/api/auth/student-login", async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ error: "Email address is required" });
       return;
     }
 
     const trimmedEmail = email.trim().toLowerCase();
-    const trimmedCred = credential.trim().toLowerCase();
 
-    const student = db.students.find(
-      (s) =>
-        s.email_address.toLowerCase() === trimmedEmail &&
-        (s.pvc_id.toLowerCase() === trimmedCred || s.phone_number.toLowerCase() === trimmedCred)
-    );
+    await acquireLock();
+    try {
+      let student = db.students.find(
+        (s) => s.email_address.toLowerCase() === trimmedEmail
+      );
 
-    if (!student) {
-      res.status(401).json({ error: "No matching student found. Please verify your email and PVC ID / Phone number." });
-      return;
+      if (!student) {
+        // Auto-register student if not exists
+        const username = trimmedEmail.split("@")[0] || "Vibe Coder";
+        const fullName = username
+          .split(/[\._-]/)
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(" ");
+
+        const nextIdNum = db.lastPvcIdNumber + 1;
+        const pvcId = "PVC" + nextIdNum.toString().padStart(3, "0");
+
+        // High-contrast, clean abstract SVG placeholder passport photo
+        const defaultAvatar = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><rect width="100" height="100" fill="%234f46e5"/><circle cx="50" cy="40" r="20" fill="white"/><path d="M20 85 C20 65, 80 65, 80 85" fill="white"/></svg>`;
+
+        const now = new Date().toISOString();
+        student = {
+          id: "std-" + crypto.randomUUID().substring(0, 8),
+          pvc_id: pvcId,
+          full_name: fullName,
+          passport_photo: defaultAvatar,
+          phone_number: "+234 812 000 0000",
+          email_address: trimmedEmail,
+          registration_date: now.substring(0, 10),
+          created_at: now,
+          updated_at: now,
+        };
+
+        db.students.push(student);
+        db.lastPvcIdNumber = nextIdNum;
+        saveDatabase(db);
+
+        logActivity(
+          "Student Auto Register",
+          `Student ${student.full_name} was automatically registered with ID ${student.pvc_id} upon entering portal.`,
+          "Auto Registration"
+        );
+      }
+
+      // Simplistic token for student: "student:" + base64 of student.id
+      const token = "student:" + Buffer.from(student.id).toString("base64");
+
+      logActivity(
+        "Student Portal Access",
+        `Student ${student.full_name} (${student.pvc_id}) entered the portal.`,
+        "Student"
+      );
+
+      res.json({
+        token,
+        student,
+      });
+    } finally {
+      releaseLock();
     }
-
-    // Simplistic token for student: "student:" + base64 of student.id
-    const token = "student:" + Buffer.from(student.id).toString("base64");
-
-    logActivity(
-      "Student Self Login",
-      `Student ${student.full_name} (${student.pvc_id}) logged in by themselves to view their ID Card.`,
-      "Student"
-    );
-
-    res.json({
-      token,
-      student,
-    });
   });
 
   // Get logged-in Student profile

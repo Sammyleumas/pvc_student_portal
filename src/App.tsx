@@ -25,24 +25,19 @@ import {
   Mail,
   Award,
   GraduationCap,
-  Trophy
+  Trophy,
+  Sparkles
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
-  // Authentication & Session - Defaulted to admin session to bypass login
+  // Authentication & Session
   const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem("admin_token") || btoa("admin@sltechco.com");
+    return localStorage.getItem("admin_token");
   });
   const [admin, setAdmin] = useState<AdminUser | null>(() => {
     const stored = localStorage.getItem("admin_user");
-    if (stored) return JSON.parse(stored);
-    return {
-      id: "admin-default",
-      name: "Director SL-Techco",
-      email: "admin@sltechco.com",
-      role: "Administrator",
-    };
+    return stored ? JSON.parse(stored) : null;
   });
 
   // Student Session
@@ -184,7 +179,7 @@ export default function App() {
     }
   };
 
-  // Handle Student Login Form Submit
+  // Handle Student Login Form Submit (Passwordless, Email-only, with Auto-registration)
   const handleStudentLoginSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoginError("");
@@ -194,20 +189,33 @@ export default function App() {
       const res = await fetch("/api/auth/student-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: studentEmail, credential: studentCredential }),
+        body: JSON.stringify({ email: studentEmail }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Student login failed");
+        throw new Error(data.error || "Student entry failed");
       }
 
       handleStudentLoginSuccess(data.token, data.student);
     } catch (err: any) {
-      setLoginError(err.message || "Invalid student credentials.");
+      setLoginError(err.message || "Something went wrong.");
     } finally {
       setLoginLoading(false);
     }
+  };
+
+  // Direct bypass to Admin Area (passwordless, one-click for development & testing ease)
+  const handleAdminBypass = () => {
+    const defaultToken = btoa("admin@sltechco.com");
+    const defaultAdmin: AdminUser = {
+      id: "admin-default",
+      name: "Director SL-Techco",
+      email: "admin@sltechco.com",
+      role: "Administrator",
+      created_at: new Date().toISOString(),
+    } as any;
+    handleLoginSuccess(defaultToken, defaultAdmin);
   };
 
   // If we are in public student credential verification mode, render that immediately
@@ -220,18 +228,18 @@ export default function App() {
     return <StudentPortal student={student} token={studentToken} onLogout={handleStudentLogout} />;
   }
 
-  // Admin / Student login layout
+  // Admin / Student login layout (Unified Entry Card)
   if (!token || !admin) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
         {/* Soft elegant background shapes */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-300/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-300/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-300/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-300/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="w-full max-w-md space-y-6 relative z-10">
           
           {/* Logo & Academy header */}
-          <div className="text-center space-y-2">
+          <div className="text-center space-y-2 select-none">
             <div className="inline-flex w-14 h-14 bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-800 rounded-2xl items-center justify-center font-black text-white text-xl shadow-xl shadow-blue-500/15 border border-white">
               SL
             </div>
@@ -240,243 +248,82 @@ export default function App() {
                 SL-TECHCO ACADEMY
               </h1>
               <p className="text-[11px] text-indigo-600 font-bold tracking-widest uppercase">
-                PVC Student ID Management Portal
+                Student ID & Vibe Coding Portal
               </p>
             </div>
           </div>
 
           {/* Login card */}
-          <div className="bg-white/70 backdrop-blur-md border border-white rounded-3xl p-6 md:p-8 shadow-xl">
+          <div className="bg-white/75 backdrop-blur-md border border-slate-200/50 rounded-3xl p-6 md:p-8 shadow-xl">
             
-            {loginView === "student-register" ? (
-              <PublicStudentRegister
-                onSuccess={(student, token) => {
-                  handleStudentLoginSuccess(token, student);
-                  setLoginView("login");
-                }}
-                onBack={() => setLoginView("login")}
-              />
-            ) : loginView === "admin-register" ? (
-              <PublicAdminRegister
-                onSuccess={(admin, token) => {
-                  handleLoginSuccess(token, admin);
-                  setLoginView("login");
-                }}
-                onBack={() => setLoginView("login")}
-              />
-            ) : (
-              <>
-                {/* Pill role switcher */}
-                <div className="flex bg-slate-100 p-1 rounded-xl mb-5">
-                  <button
-                    type="button"
-                    onClick={() => { setLoginRole("student"); setLoginError(""); }}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                      loginRole === "student" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    <GraduationCap className="w-4 h-4 text-indigo-500" />
-                    Student Login
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setLoginRole("admin"); setLoginError(""); }}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                      loginRole === "admin" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    <ShieldCheck className="w-4 h-4 text-blue-500" />
-                    Admin Portal
-                  </button>
-                </div>
-
-                {/* Error Notifications */}
-                {loginError && (
-                  <div className="p-3 bg-rose-50 text-rose-800 text-xs rounded-xl border border-rose-100 font-semibold mb-4">
-                    {loginError}
-                  </div>
-                )}
-
-                {loginRole === "student" ? (
-                  /* STUDENT PORTAL FORM */
-                  <form onSubmit={handleStudentLoginSubmit} className="space-y-4">
-                    <div className="space-y-1">
-                      <h2 className="text-base font-bold text-slate-800">
-                        Student Login Portal
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Log in with your registered credentials to view and print your active student ID card.
-                      </p>
-                    </div>
-
-                    {/* Student Email */}
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Your Email Address
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Mail className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="email"
-                          required
-                          placeholder="e.g. student@example.com"
-                          value={studentEmail}
-                          onChange={(e) => setStudentEmail(e.target.value)}
-                          className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Student Phone or PVC ID */}
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        PVC ID or Phone Number
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Lock className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. PVC001 or +234..."
-                          value={studentCredential}
-                          onChange={(e) => setStudentCredential(e.target.value)}
-                          className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Access Button */}
-                    <button
-                      type="submit"
-                      disabled={loginLoading}
-                      className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
-                    >
-                      {loginLoading ? (
-                        "Retrieving Credentials..."
-                      ) : (
-                        <>
-                          <GraduationCap className="w-4.5 h-4.5 text-cyan-300" />
-                          View My ID Card
-                        </>
-                      )}
-                    </button>
-
-                    <div className="pt-2 text-[11px] text-slate-500 leading-relaxed text-center space-y-2">
-                      <div>
-                        To get registered on the academy list, you can register yourself directly.
-                      </div>
-                      <div className="border-t border-slate-100 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => { setLoginView("student-register"); setLoginError(""); }}
-                          className="text-indigo-600 hover:underline font-bold text-xs"
-                        >
-                          New Student? Register Yourself Here &rarr;
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                ) : (
-                  /* ADMINISTRATOR FORM */
-                  <form onSubmit={handleLoginSubmit} className="space-y-4">
-                    <div className="space-y-1">
-                      <h2 className="text-base font-bold text-slate-800">
-                        Administrator Login
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Authorize admin session to register students and manage directories.
-                      </p>
-                    </div>
-
-                    {/* Admin Email */}
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Mail className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="email"
-                          required
-                          placeholder="e.g. admin@sltechco.com"
-                          value={loginEmail}
-                          onChange={(e) => setLoginEmail(e.target.value)}
-                          className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Admin Password */}
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Secret Password
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Lock className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="password"
-                          required
-                          placeholder="••••••••"
-                          value={loginPassword}
-                          onChange={(e) => setLoginPassword(e.target.value)}
-                          className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Admin Sign in Button */}
-                    <button
-                      type="submit"
-                      disabled={loginLoading}
-                      className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
-                    >
-                      {loginLoading ? (
-                        "Authenticating Session..."
-                      ) : (
-                        <>
-                          <ShieldCheck className="w-4.5 h-4.5 text-cyan-300" />
-                          Authorize Portal Session
-                        </>
-                      )}
-                    </button>
-
-                    <div className="pt-2 border-t border-slate-100 text-center">
-                      <button
-                        type="button"
-                        onClick={() => { setLoginView("admin-register"); setLoginError(""); }}
-                        className="text-blue-600 hover:underline font-bold text-xs"
-                      >
-                        Register New Administrator &rarr;
-                      </button>
-                    </div>
-
-                    {/* Quick prefilled credentials guide for testing ease */}
-                    <div className="mt-4 p-3.5 bg-blue-50/50 border border-blue-100 rounded-xl text-[11px] text-blue-800 space-y-1">
-                      <span className="font-bold">Portal Demo Credentials:</span>
-                      <div className="flex justify-between items-center text-slate-600 mt-1">
-                        <span>Email: <span className="font-mono text-blue-900 font-bold">admin@sltechco.com</span></span>
-                        <button 
-                          type="button" 
-                          onClick={() => { setLoginEmail("admin@sltechco.com"); setLoginPassword("admin123"); }}
-                          className="text-blue-600 hover:underline font-bold"
-                        >
-                          Autofill
-                        </button>
-                      </div>
-                      <div className="text-slate-600">Password: <span className="font-mono text-blue-900 font-bold">admin123</span></div>
-                    </div>
-                  </form>
-                )}
-              </>
+            {/* Error Notifications */}
+            {loginError && (
+              <div className="p-3 bg-rose-50 text-rose-800 text-xs rounded-xl border border-rose-100 font-semibold mb-4">
+                {loginError}
+              </div>
             )}
+
+            <form onSubmit={handleStudentLoginSubmit} className="space-y-5">
+              <div className="space-y-1.5 text-center">
+                <h2 className="text-base font-bold text-slate-800 flex items-center justify-center gap-1.5">
+                  <GraduationCap className="w-5 h-5 text-indigo-600" />
+                  Enter Student Portal & Leaderboard
+                </h2>
+                <p className="text-xs text-slate-500 px-2 leading-relaxed">
+                  Enter your email address to access your official PVC student ID card, take quizzes, submit assignments, and see the live global Leaderboard!
+                </p>
+              </div>
+
+              {/* Student Email */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Your Email Address
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. name@example.com"
+                    value={studentEmail}
+                    onChange={(e) => setStudentEmail(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  * Password-free entrance. If your email is not on our academy list, we will automatically register you on-the-fly!
+                </p>
+              </div>
+
+              {/* Access Button */}
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {loginLoading ? (
+                  "Entering Portal..."
+                ) : (
+                  <>
+                    <Sparkles className="w-4.5 h-4.5 text-cyan-300 animate-pulse" />
+                    Enter Portal & Leaderboard
+                  </>
+                )}
+              </button>
+
+              <div className="border-t border-slate-100 pt-4 flex flex-col items-center">
+                <button
+                  type="button"
+                  onClick={handleAdminBypass}
+                  className="text-xs text-slate-500 hover:text-indigo-600 font-semibold transition-all flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  Access Administrator Workspace &rarr;
+                </button>
+              </div>
+            </form>
 
           </div>
         </div>
@@ -537,7 +384,7 @@ export default function App() {
           })}
         </nav>
 
-        {/* Administrator profile in footer */}
+        {/* Administrator profile in footer with logout button */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5 overflow-hidden">
@@ -553,6 +400,13 @@ export default function App() {
                 </span>
               </div>
             </div>
+            <button
+              onClick={handleLogout}
+              className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors shrink-0 cursor-pointer"
+              title="Return to Student Portal"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </aside>
@@ -634,6 +488,16 @@ export default function App() {
                       </span>
                     </div>
                   </div>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setIsSidebarOpen(false);
+                    }}
+                    className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors shrink-0 cursor-pointer"
+                    title="Return to Student Portal"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </motion.aside>
