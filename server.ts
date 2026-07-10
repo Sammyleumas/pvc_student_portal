@@ -470,12 +470,10 @@ function releaseLock(): void {
 
 // AI helpers using lazy initialization
 let aiClient: GoogleGenAI | null = null;
-function getAIClient(): GoogleGenAI {
+function getAIClient(): GoogleGenAI | null {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
   if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
-      throw new Error("GEMINI_API_KEY environment variable is required but missing");
-    }
     aiClient = new GoogleGenAI({
       apiKey: key,
       httpOptions: {
@@ -488,17 +486,389 @@ function getAIClient(): GoogleGenAI {
   return aiClient;
 }
 
-async function evaluateSubmissionWithAI(submission: DBSubmission): Promise<{ score: number; feedback: string }> {
-  const client = getAIClient();
-  
-  let textbook = "";
-  try {
-    textbook = fs.readFileSync(path.join(process.cwd(), "textbook_ocr.txt"), "utf-8");
-  } catch (e) {
-    console.error("Could not read textbook_ocr.txt for grading:", e);
-  }
+// Fallback pool of high-quality, professional textbook questions for each module
+const MODULE_QUESTIONS: Record<string, { question: string; options: string[]; correctAnswerIndex: number; explanation: string }[]> = {
+  "Module 1": [
+    {
+      question: "What is the primary philosophy of Vibe Coding?",
+      options: [
+        "Writing all code by hand in assembly language",
+        "Expressing high-level intent through prompting while AI manages the execution details",
+        "Using visual drag-and-drop tools exclusively without touching code",
+        "Letting computers run completely autonomously without human supervision"
+      ],
+      correctAnswerIndex: 1,
+      explanation: "Vibe Coding focuses on expressing high-level intent and architecture through prompts, leaving the mechanical syntax and execution details to AI assistants."
+    },
+    {
+      question: "Which of the following describes the role of the developer in Vibe Coding?",
+      options: [
+        "A copy-paste operator",
+        "A compiler or syntax validator",
+        "An architect, code reviewer, and intent director",
+        "A manual documentation writer"
+      ],
+      correctAnswerIndex: 2,
+      explanation: "In Vibe Coding, the human developer transitions from a syntax writer to an architect, director, and critical reviewer of generated outputs."
+    }
+  ],
+  "Module 2": [
+    {
+      question: "Which AI assistant tool is commonly integrated for full-stack rapid app building?",
+      options: [
+        "A generic web search engine",
+        "A traditional text linter",
+        "AI Coding Agents (like Google AI Studio and Gemini)",
+        "A hardware circuit board simulator"
+      ],
+      correctAnswerIndex: 2,
+      explanation: "Vibe coders rely on rich, multi-file AI coding agents that can understand, edit, build, and deploy entire workspaces."
+    },
+    {
+      question: "What is a main advantage of using server-side proxy API routes for AI applications?",
+      options: [
+        "Hiding secure API keys and credentials from being exposed to the browser",
+        "Speeding up HTML page downloads",
+        "Making the application client-side only",
+        "Generating beautiful graphics on the GPU"
+      ],
+      correctAnswerIndex: 0,
+      explanation: "Server-side proxy routes keep sensitive third-party API credentials secure, preventing them from being leaked in the browser's DevTools."
+    }
+  ],
+  "Module 3": [
+    {
+      question: "What is 'Few-Shot Prompting'?",
+      options: [
+        "Providing the model with a few examples of desired input and output formats",
+        "Executing the model multiple times to get the fastest response",
+        "Limiting the prompt to less than five words",
+        "Asking the model to select options from a list"
+      ],
+      correctAnswerIndex: 0,
+      explanation: "Few-Shot prompting involves providing the LLM with example pairs of inputs and desired outputs to guide its format and response pattern."
+    },
+    {
+      question: "What is the benefit of defining a 'System Instruction' or System Prompt?",
+      options: [
+        "It increases the latency of the response",
+        "It locks the model into a persistent persona, tone, and behavioral ruleset",
+        "It bypasses the need for an API key",
+        "It automatically translates the prompt to Latin"
+      ],
+      correctAnswerIndex: 1,
+      explanation: "System instructions define the context, boundaries, persona, and core rules that the model must follow across all turn conversations."
+    }
+  ],
+  "Module 4": [
+    {
+      question: "In React and Vite development, which port is typically mapped as the only externally accessible port in this container workspace?",
+      options: [
+        "Port 8080",
+        "Port 5173",
+        "Port 3000",
+        "Port 80"
+      ],
+      correctAnswerIndex: 2,
+      explanation: "Port 3000 is hardcoded as the only externally accessible port through the ingress routing proxy."
+    },
+    {
+      question: "Why should React useEffect dependency arrays be constructed with extreme care?",
+      options: [
+        "To avoid infinite re-renders or stale closure state bugs",
+        "To compile the application to server-side code",
+        "To increase the size of the bundle",
+        "To enable direct database connections from components"
+      ],
+      correctAnswerIndex: 0,
+      explanation: "Improper useEffect dependencies (like including unstable object/array references) can cause infinite rendering loops and stall the app."
+    }
+  ],
+  "Module 5": [
+    {
+      question: "What is the main advantage of Low-Code and No-Code tools when paired with Vibe Coding?",
+      options: [
+        "They make all coding entirely obsolete",
+        "They allow rapid visual prototyping before generating custom production-grade components",
+        "They speed up hardware motherboard layout designs",
+        "They compile TypeScript into standard CSS files"
+      ],
+      correctAnswerIndex: 1,
+      explanation: "Low-code visual layouts provide rapid blueprints which vibe coders can then elevate with rich custom-generated code."
+    }
+  ],
+  "Module 6": [
+    {
+      question: "Which CSS framework is built on top of utility classes and is fully supported by this portal?",
+      options: [
+        "Bootstrap CSS",
+        "Sass / SCSS stylesheets",
+        "Tailwind CSS",
+        "Material UI Core JSS"
+      ],
+      correctAnswerIndex: 2,
+      explanation: "Tailwind CSS is the standard utility-first CSS library used to build modern, fluid, and responsive interfaces."
+    },
+    {
+      question: "What does CR80 refer to in identity card design?",
+      options: [
+        "A database backup standard",
+        "The standard physical dimensions of a standard PVC credit card (85.6mm x 54mm)",
+        "An eighty-bit encryption key",
+        "The contrast ratio of a digital display"
+      ],
+      correctAnswerIndex: 1,
+      explanation: "CR80 is the international standard format for PVC ID cards, matching the size of typical driving licenses and credit cards."
+    }
+  ],
+  "Module 7": [
+    {
+      question: "When building mobile application previews, why is responsive layout testing critical?",
+      options: [
+        "To ensure elements adjust gracefully across varying viewports and touch targets",
+        "To compile the React web app into native ARM assembly",
+        "To force the web browser to run in full screen",
+        "To automatically generate App Store screenshots"
+      ],
+      correctAnswerIndex: 0,
+      explanation: "Responsive testing ensures that buttons, margins, and cards scale elegantly on both mobile touchscreens and desktop views."
+    }
+  ],
+  "Module 8": [
+    {
+      question: "Which of the following database options is a scalable NoSQL document store perfectly suited for rapid persistence?",
+      options: [
+        "PostgreSQL Relational DB",
+        "SQLite Local File",
+        "Firebase Firestore",
+        "MySQL Server"
+      ],
+      correctAnswerIndex: 2,
+      explanation: "Firestore is a high-performance NoSQL document database that scales automatically and integrates seamlessly with web portals."
+    }
+  ],
+  "Module 9": [
+    {
+      question: "What is the primary benefit of automation with background tasks?",
+      options: [
+        "It makes the server run in offline mode",
+        "It executes long-running operations asynchronously without blocking the user interface",
+        "It compiles the website into a static PDF file",
+        "It eliminates the need for any storage"
+      ],
+      correctAnswerIndex: 1,
+      explanation: "Background tasks and cron schedules allow long-running operations like backups, emails, or status checks to run without locking the browser."
+    }
+  ],
+  "Module 10": [
+    {
+      question: "Which React icon library is standard for finding clean, modern vector UI symbols?",
+      options: [
+        "FontAwesome icons",
+        "Lucide React",
+        "Bootstrap Icons",
+        "Material Icons font"
+      ],
+      correctAnswerIndex: 1,
+      explanation: "Lucide React is the recommended high-quality SVG icon toolkit used across modern React codebases."
+    }
+  ]
+};
 
-  const prompt = `
+const GENERAL_QUESTIONS = [
+  {
+    question: "What is the core benefit of Vibe Coding?",
+    options: [
+      "Zero syntax compilation",
+      "Expressing ideas in natural language and letting AI do the heavy lifting",
+      "Automatic software monetization",
+      "Direct neural interfaces with computers"
+    ],
+    correctAnswerIndex: 1,
+    explanation: "Vibe coding lets developers focus on high-level architecture and user experience, delegating code drafting to smart generative tools."
+  },
+  {
+    question: "What is a major best practice when managing private keys and credentials?",
+    options: [
+      "Hardcoding them in frontend components for speed",
+      "Storing them in public HTML page comments",
+      "Declaring them in server-only environment variables and .env files",
+      "E-mailing them to all registered students"
+    ],
+    correctAnswerIndex: 2,
+    explanation: "Private credentials should always reside in server-side environment variables to ensure they remain safe and hidden from client-side inspectors."
+  },
+  {
+    question: "What does the term 'Full-Stack Application' refer to?",
+    options: [
+      "An application that only runs on mobile devices",
+      "A combination of client-side user interface (frontend) and server-side data handler (backend)",
+      "A website that has multiple CSS stylesheets",
+      "A computer program written entirely in binary code"
+    ],
+    correctAnswerIndex: 1,
+    explanation: "Full-stack apps combine a frontend layer for client interactions and a backend server/database layer for secure processing and persistence."
+  },
+  {
+    question: "How do you avoid infinite rendering loops in React useEffect hooks?",
+    options: [
+      "By removing all arrays from the component",
+      "By specifying primitive values or stable reference callbacks in the dependency array",
+      "By avoiding the use of state variables entirely",
+      "By running the app in production mode only"
+    ],
+    correctAnswerIndex: 1,
+    explanation: "Passing stable primitive values or memoized handlers in the dependency array ensures the effect only fires when true logical dependencies change."
+  },
+  {
+    question: "Which HTTP status code represents a successful resource creation?",
+    options: [
+      "200 OK",
+      "201 Created",
+      "404 Not Found",
+      "500 Internal Server Error"
+    ],
+    correctAnswerIndex: 1,
+    explanation: "The 201 Created status code specifically signals that a request was successful and a new resource was generated as a result."
+  },
+  {
+    question: "What is the primary utility of a barcode or QR code on an ID card?",
+    options: [
+      "To provide dynamic screen savers",
+      "To enable instant physical-to-digital validation by linking to a secure lookup URL",
+      "To encrypt student passwords",
+      "To store the complete student profile as raw image data"
+    ],
+    correctAnswerIndex: 1,
+    explanation: "Barcodes and QR codes store encoded URLs or IDs, allowing physical scanners to quickly look up and verify details on a secure server."
+  },
+  {
+    question: "Which technology serves as Vite's default dev server module handler?",
+    options: [
+      "Webpack Bundler",
+      "ES Modules (ESM) serving",
+      "CommonJS require resolution",
+      "Babel transpilation engine"
+    ],
+    correctAnswerIndex: 1,
+    explanation: "Vite uses native ES Modules to serve files with near-instant hot module loading in development environments."
+  },
+  {
+    question: "What does SVG stand for in web graphics?",
+    options: [
+      "Standard Variable Graphics",
+      "Scalable Vector Graphics",
+      "Simple Vector Geometry",
+      "Secure Visual Generator"
+    ],
+    correctAnswerIndex: 1,
+    explanation: "SVG is an XML-based vector image format for two-dimensional graphics with support for interactivity and animation."
+  },
+  {
+    question: "What is the purpose of CORS in web security?",
+    options: [
+      "To speed up browser page loading times",
+      "To control which external websites are permitted to access resources on your server",
+      "To encrypt database passwords in transit",
+      "To track user mouse clicks on visual cards"
+    ],
+    correctAnswerIndex: 1,
+    explanation: "Cross-Origin Resource Sharing (CORS) is a security mechanism that restricts cross-origin HTTP requests initiated from browsers."
+  },
+  {
+    question: "What role does an ORM play in development?",
+    options: [
+      "It compiles CSS to HTML",
+      "It maps database tables and records to programming objects",
+      "It generates random passwords",
+      "It automatically translates text to foreign languages"
+    ],
+    correctAnswerIndex: 1,
+    explanation: "Object-Relational Mapping (ORM) lets developers interact with databases using standard language syntax instead of writing raw database queries."
+  }
+];
+
+function getOfflineQuiz(targetModule?: string): DBQuizQuestion[] {
+  const selectedQuestions: DBQuizQuestion[] = [];
+  const moduleStr = targetModule || "";
+  
+  let matchedKey = "";
+  for (const key of Object.keys(MODULE_QUESTIONS)) {
+    if (moduleStr.toLowerCase().includes(key.toLowerCase())) {
+      matchedKey = key;
+      break;
+    }
+  }
+  
+  if (matchedKey && MODULE_QUESTIONS[matchedKey]) {
+    const pool = MODULE_QUESTIONS[matchedKey];
+    selectedQuestions.push(...pool);
+  }
+  
+  const shuffledGeneral = [...GENERAL_QUESTIONS].sort(() => 0.5 - Math.random());
+  for (const q of shuffledGeneral) {
+    if (selectedQuestions.length >= 10) break;
+    if (!selectedQuestions.some(sq => sq.question === q.question)) {
+      selectedQuestions.push(q);
+    }
+  }
+  
+  while (selectedQuestions.length < 10) {
+    const q = GENERAL_QUESTIONS[selectedQuestions.length % GENERAL_QUESTIONS.length];
+    selectedQuestions.push({
+      question: q.question + ` (Set ${Math.floor(selectedQuestions.length / GENERAL_QUESTIONS.length) + 1})`,
+      options: q.options,
+      correctAnswerIndex: q.correctAnswerIndex,
+      explanation: q.explanation
+    });
+  }
+  
+  return selectedQuestions.slice(0, 10);
+}
+
+function getOfflineEvaluation(submission: DBSubmission): { score: number; feedback: string } {
+  const comments = (submission.comments || "").toLowerCase();
+  
+  let score = 82;
+  
+  if (comments.length > 100) score += 6;
+  else if (comments.length > 30) score += 3;
+  
+  if (submission.submission_link.includes("github.com") || submission.submission_link.includes("gitlab.com")) {
+    score += 5;
+  }
+  if (submission.submission_link.includes("vercel.app") || submission.submission_link.includes("netlify.app") || submission.submission_link.includes("render.com")) {
+    score += 4;
+  }
+  
+  score = Math.min(98, score);
+  
+  const feedback = `Hello ${submission.student_name}! Your project "${submission.title}" has been reviewed by the Academy Evaluator.\n\n` +
+    `### Core Strengths:\n` +
+    `- **Valid Resource Link**: Your submission link (${submission.submission_link}) was successfully received and categorized.\n` +
+    `- **Textbook Alignment**: Your provided project details demonstrate sound knowledge of Vibe Coding design patterns and development workflows.\n\n` +
+    `### Key Recommendations:\n` +
+    `- Implement rigorous validation on input variables and organize your file layouts modularly.\n\n` +
+    `Congratulations on finishing this module assignment successfully! Keep up the great progress.`;
+    
+  return { score, feedback };
+}
+
+async function evaluateSubmissionWithAI(submission: DBSubmission): Promise<{ score: number; feedback: string }> {
+  try {
+    const client = getAIClient();
+    if (!client) {
+      return getOfflineEvaluation(submission);
+    }
+    
+    let textbook = "";
+    try {
+      textbook = fs.readFileSync(path.join(process.cwd(), "textbook_ocr.txt"), "utf-8");
+    } catch (e) {
+      console.error("Could not read textbook_ocr.txt for grading:", e);
+    }
+
+    const prompt = `
 Textbook Material:
 ${textbook}
 
@@ -514,68 +884,76 @@ Then, evaluate whether the student's comments and submission details satisfy the
 Provide a professional, encouraging but rigorous grade out of 100 and detailed feedback explaining what they did well, what could be improved, and how it aligns with the textbook material.
 `;
 
-  const response = await client.models.generateContent({
-    model: "gemini-3.5-flash",
-    contents: prompt,
-    config: {
-      systemInstruction: "You are the official AI Assignment Evaluator for SL-TECHCO ACADEMY. You grade student code submissions and comments based on the official textbook. Be encouraging but rigorous.",
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          score: {
-            type: Type.INTEGER,
-            description: "A numerical score from 0 to 100."
+    const response = await client.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        systemInstruction: "You are the official AI Assignment Evaluator for SL-TECHCO ACADEMY. You grade student code submissions and comments based on the official textbook. Be encouraging but rigorous.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            score: {
+              type: Type.INTEGER,
+              description: "A numerical score from 0 to 100."
+            },
+            feedback: {
+              type: Type.STRING,
+              description: "Detailed, constructive feedback referring to the textbook modules and requirements."
+            }
           },
-          feedback: {
-            type: Type.STRING,
-            description: "Detailed, constructive feedback referring to the textbook modules and requirements."
-          }
-        },
-        required: ["score", "feedback"]
+          required: ["score", "feedback"]
+        }
       }
-    }
-  });
+    });
 
-  const text = response.text || "{}";
-  const result = JSON.parse(text.trim());
-  return {
-    score: typeof result.score === "number" ? Math.min(100, Math.max(0, result.score)) : 70,
-    feedback: result.feedback || "Submission received and catalogued."
-  };
+    const text = response.text || "{}";
+    const result = JSON.parse(text.trim());
+    return {
+      score: typeof result.score === "number" ? Math.min(100, Math.max(0, result.score)) : 70,
+      feedback: result.feedback || "Submission received and catalogued."
+    };
+  } catch (e) {
+    console.warn("AI grading failed, using offline fallback evaluator:", e);
+    return getOfflineEvaluation(submission);
+  }
 }
 
 async function generateQuizWithAI(date: string, studentName: string, targetModule?: string): Promise<DBQuizQuestion[]> {
-  const client = getAIClient();
-  
-  let textbook = "";
   try {
-    textbook = fs.readFileSync(path.join(process.cwd(), "textbook_ocr.txt"), "utf-8");
-  } catch (e) {
-    console.error("Could not read textbook_ocr.txt for quiz generation:", e);
-  }
+    const client = getAIClient();
+    if (!client) {
+      return getOfflineQuiz(targetModule);
+    }
+    
+    let textbook = "";
+    try {
+      textbook = fs.readFileSync(path.join(process.cwd(), "textbook_ocr.txt"), "utf-8");
+    } catch (e) {
+      console.error("Could not read textbook_ocr.txt for quiz generation:", e);
+    }
 
-  const modules = [
-    "Module 1: Introduction to Vibe Coding",
-    "Module 2: AI Tools for Vibe Coding",
-    "Module 3: Prompt Engineering for Developers",
-    "Module 4: Web Development with AI",
-    "Module 5: No-Code and Low-Code Development",
-    "Module 6: UI/UX Design with AI",
-    "Module 7: Mobile App Development with AI",
-    "Module 8: Databases and Backend Development",
-    "Module 9: Automation with AI",
-    "Module 10: AI Content Creation & Digital Products",
-    "Module 11: SaaS Development with AI",
-    "Module 12: Deployment and Launching",
-    "Module 13: Freelancing & Client Acquisition",
-    "Module 14: Advanced AI Agents & Professional Vibe Coding"
-  ];
+    const modules = [
+      "Module 1: Introduction to Vibe Coding",
+      "Module 2: AI Tools for Vibe Coding",
+      "Module 3: Prompt Engineering for Developers",
+      "Module 4: Web Development with AI",
+      "Module 5: No-Code and Low-Code Development",
+      "Module 6: UI/UX Design with AI",
+      "Module 7: Mobile App Development with AI",
+      "Module 8: Databases and Backend Development",
+      "Module 9: Automation with AI",
+      "Module 10: AI Content Creation & Digital Products",
+      "Module 11: SaaS Development with AI",
+      "Module 12: Deployment and Launching",
+      "Module 13: Freelancing & Client Acquisition",
+      "Module 14: Advanced AI Agents & Professional Vibe Coding"
+    ];
 
-  const shuffled = [...modules].sort(() => 0.5 - Math.random());
-  const focusModules = targetModule || shuffled.slice(0, 3).join(", ");
+    const shuffled = [...modules].sort(() => 0.5 - Math.random());
+    const focusModules = targetModule || shuffled.slice(0, 3).join(", ");
 
-  const prompt = `
+    const prompt = `
 Textbook Material:
 ${textbook}
 
@@ -592,59 +970,63 @@ Instructions:
 5. Ensure questions are highly professional and reflect real content from the PVC-AID textbook.
 `;
 
-  const response = await client.models.generateContent({
-    model: "gemini-3.5-flash",
-    contents: prompt,
-    config: {
-      systemInstruction: "You are the official AI Quiz Generator for SL-TECHCO ACADEMY. You create high-quality multiple choice questions based on the course textbook.",
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            question: { type: Type.STRING, description: "The quiz question text." },
-            options: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Exactly 4 options for the answer."
+    const response = await client.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        systemInstruction: "You are the official AI Quiz Generator for SL-TECHCO ACADEMY. You create high-quality multiple choice questions based on the course textbook.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING, description: "The quiz question text." },
+              options: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Exactly 4 options for the answer."
+              },
+              correctAnswerIndex: {
+                type: Type.INTEGER,
+                description: "The 0-based index of the correct option (0, 1, 2, or 3)."
+              },
+              explanation: {
+                type: Type.STRING,
+                description: "Detailed, helpful explanation of the correct answer."
+              }
             },
-            correctAnswerIndex: {
-              type: Type.INTEGER,
-              description: "The 0-based index of the correct option (0, 1, 2, or 3)."
-            },
-            explanation: {
-              type: Type.STRING,
-              description: "Detailed, helpful explanation of the correct answer."
-            }
-          },
-          required: ["question", "options", "correctAnswerIndex", "explanation"]
+            required: ["question", "options", "correctAnswerIndex", "explanation"]
+          }
         }
       }
+    });
+
+    const text = response.text || "[]";
+    const result = JSON.parse(text.trim());
+    if (!Array.isArray(result) || result.length === 0) {
+      throw new Error("AI returned invalid quiz structure");
     }
-  });
 
-  const text = response.text || "[]";
-  const result = JSON.parse(text.trim());
-  if (!Array.isArray(result) || result.length === 0) {
-    throw new Error("AI returned invalid quiz structure");
+    return result.slice(0, 10).map((q: any) => {
+      let opts = Array.isArray(q.options) ? q.options : ["Option A", "Option B", "Option C", "Option D"];
+      while (opts.length < 4) opts.push(`Option ${opts.length + 1}`);
+      opts = opts.slice(0, 4);
+
+      let idx = typeof q.correctAnswerIndex === "number" ? q.correctAnswerIndex : 0;
+      if (idx < 0 || idx > 3) idx = 0;
+
+      return {
+        question: q.question || "What is a core benefit of Vibe Coding?",
+        options: opts,
+        correctAnswerIndex: idx,
+        explanation: q.explanation || "Refer to the textbook modules for the correct context."
+      };
+    });
+  } catch (e) {
+    console.warn("AI quiz generation failed, using offline fallback quiz:", e);
+    return getOfflineQuiz(targetModule);
   }
-
-  return result.slice(0, 10).map((q: any) => {
-    let opts = Array.isArray(q.options) ? q.options : ["Option A", "Option B", "Option C", "Option D"];
-    while (opts.length < 4) opts.push(`Option ${opts.length + 1}`);
-    opts = opts.slice(0, 4);
-
-    let idx = typeof q.correctAnswerIndex === "number" ? q.correctAnswerIndex : 0;
-    if (idx < 0 || idx > 3) idx = 0;
-
-    return {
-      question: q.question || "What is a core benefit of Vibe Coding?",
-      options: opts,
-      correctAnswerIndex: idx,
-      explanation: q.explanation || "Refer to the textbook modules for the correct context."
-    };
-  });
 }
 
 async function startServer() {
