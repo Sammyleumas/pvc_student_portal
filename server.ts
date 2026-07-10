@@ -5,10 +5,6 @@ import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
-import { WebSocketServer, WebSocket } from "ws";
-
-// Firebase Admin SDK
-import { adminAuth, adminDb } from "./src/lib/firebase-admin.ts";
 
 // ES Module resolution
 const __filename = fileURLToPath(import.meta.url);
@@ -111,6 +107,9 @@ interface DBSchema {
   settings?: DBSettings;
   notifications?: DBNotification[];
 }
+
+import { adminAuth, adminDb } from "./src/lib/firebase-admin.ts";
+
 
 // Local Database Fallback Initialization
 function initDatabase(): DBSchema {
@@ -235,7 +234,7 @@ async function loadFromFirestore(): Promise<DBSchema> {
       }
     });
 
-    // If there is no data in Firestore (e.g. fresh database), seed it from db.json
+    // If there is no data in Firestore (e.g. fresh database), seed it from local db.json
     if (studentsList.length === 0 && adminsList.length === 0) {
       console.log("[Firestore] Database is empty. Seeding from local db.json fallback...");
       const localDb = initDatabase();
@@ -254,7 +253,7 @@ async function loadFromFirestore(): Promise<DBSchema> {
     // Determine the next starting PVC sequential counter
     const lastPvcIdNumber = studentsList.length > 0 
       ? Math.max(...studentsList.map(s => {
-          const num = parseInt(s.pvc_id.replace("PVC-", ""), 10);
+          const num = parseInt(s.pvc_id.replace("PVC", ""), 10);
           return isNaN(num) ? 0 : num;
         }))
       : 0;
@@ -269,7 +268,7 @@ async function loadFromFirestore(): Promise<DBSchema> {
         role: a.role as "Administrator" | "Staff",
         created_at: a.created_at
       })),
-      auditLogs: auditLogsList,
+      auditLogs: auditLogsList.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       lastPvcIdNumber,
       submissions: submissionsList.map(s => ({
         id: s.id,
@@ -284,18 +283,18 @@ async function loadFromFirestore(): Promise<DBSchema> {
         submitted_at: s.submitted_at,
         graded_at: s.graded_at || undefined,
         graded_by: s.graded_by || undefined,
-      })),
+      })).sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()),
       quizzes: quizzesList.map(q => ({
         id: q.id,
         student_id: q.student_id,
         date: q.date,
         questions: q.questions as DBQuizQuestion[],
-        answers: q.answers as number[] || undefined,
+        answers: q.answers || undefined,
         score: q.score !== null && q.score !== undefined ? q.score : undefined,
         feedback: q.feedback || undefined,
         submitted_at: q.submitted_at || undefined,
         created_at: q.created_at,
-      })),
+      })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       settings: settingsObj,
       notifications: notificationsList.map(n => ({
         id: n.id,
@@ -305,7 +304,7 @@ async function loadFromFirestore(): Promise<DBSchema> {
         message: n.message,
         read: n.read,
         created_at: n.created_at,
-      })),
+      })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     };
   } catch (error) {
     console.error("[Firestore] Load failed, falling back to local file:", error);
@@ -376,10 +375,22 @@ async function saveToFirestore(data: DBSchema) {
       }
     }
 
-    // Upsert students
+    // Upsert students (handle deletion sync if a student was deleted)
     if (data.students && data.students.length > 0) {
+      const currentSnap = await adminDb.collection("students").get();
+      const currentIds = new Set(data.students.map(s => s.id));
+      for (const doc of currentSnap.docs) {
+        if (!currentIds.has(doc.id)) {
+          await adminDb.collection("students").doc(doc.id).delete();
+        }
+      }
       for (const student of data.students) {
         await adminDb.collection("students").doc(student.id).set(student);
+      }
+    } else {
+      const currentSnap = await adminDb.collection("students").get();
+      for (const doc of currentSnap.docs) {
+        await adminDb.collection("students").doc(doc.id).delete();
       }
     }
 
@@ -422,154 +433,23 @@ async function saveToFirestore(data: DBSchema) {
   }
 }
 
-
-// --- WEBSOCKET CLIENT REGISTRY & BROADCAST HELPERS ---
-interface ConnectedClient {
-  ws: WebSocket;
-  type: "admin" | "student" | "unknown";
-  studentId?: string;
-}
-
-const connectedClients = new Set<ConnectedClient>();
-
-function broadcastToAdmins(event: string, data: any) {
-  const payload = JSON.stringify({ event, data });
-  for (const client of connectedClients) {
-    if (client.type === "admin" && client.ws.readyState === WebSocket.OPEN) {
-      try { client.ws.send(payload); } catch (_) {}
-    }
-  }
-}
-
-function broadcastToStudents(event: string, data: any) {
-  const payload = JSON.stringify({ event, data });
-  for (const client of connectedClients) {
-    if (client.type === "student" && client.ws.readyState === WebSocket.OPEN) {
-      try { client.ws.send(payload); } catch (_) {}
-    }
-  }
-}
-
-function sendToStudent(studentId: string, event: string, data: any) {
-  const payload = JSON.stringify({ event, data });
-  for (const client of connectedClients) {
-    if (client.type === "student" && client.studentId === studentId && client.ws.readyState === WebSocket.OPEN) {
-      try { client.ws.send(payload); } catch (_) {}
-    }
-  }
-}
-
-function broadcastToAll(event: string, data: any) {
-  const payload = JSON.stringify({ event, data });
-  for (const client of connectedClients) {
-    if (client.ws.readyState === WebSocket.OPEN) {
-      try { client.ws.send(payload); } catch (_) {}
-    }
-  }
-}
-
-let wss: WebSocketServer | null = null;
-
-function setupWebSocketServer(server: any) {
-  wss = new WebSocketServer({ server });
-  
-  wss.on("connection", (ws: WebSocket) => {
-    const client: ConnectedClient = {
-      ws,
-      type: "unknown",
-    };
-    connectedClients.add(client);
-    console.log("[WS] New client connected. Total clients:", connectedClients.size);
-
-    // Send connection ACK
-    ws.send(JSON.stringify({ event: "connected", data: { message: "Connected to SL-TECHCO Real-time Server" } }));
-
-    // Send periodic ping to maintain connection (Vite dev server or proxy timeout protection)
-    const pingInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        try { ws.ping(); } catch (_) {}
-      }
-    }, 30000);
-
-    ws.on("message", (messageStr: string) => {
-      try {
-        const msg = JSON.parse(messageStr.toString());
-        if (msg.event === "register") {
-          if (msg.data.role === "admin") {
-            client.type = "admin";
-            console.log("[WS] Client registered as ADMIN");
-            ws.send(JSON.stringify({ event: "registered", data: { status: "success", role: "admin" } }));
-          } else if (msg.data.role === "student" && msg.data.studentId) {
-            client.type = "student";
-            client.studentId = msg.data.studentId;
-            console.log(`[WS] Client registered as STUDENT (ID: ${msg.data.studentId})`);
-            ws.send(JSON.stringify({ event: "registered", data: { status: "success", role: "student" } }));
-          }
-        } else if (msg.event === "ping") {
-          ws.send(JSON.stringify({ event: "pong" }));
-        }
-      } catch (err) {
-        console.error("[WS] Message parsing error:", err);
-      }
-    });
-
-    ws.on("close", () => {
-      clearInterval(pingInterval);
-      connectedClients.delete(client);
-      console.log("[WS] Client disconnected. Total remaining clients:", connectedClients.size);
-    });
-
-    ws.on("error", (err) => {
-      clearInterval(pingInterval);
-      connectedClients.delete(client);
-      console.error("[WS] Client error:", err);
-    });
-  });
-
-  console.log("[WS] WebSocket Server initialized alongside Express");
-}
-
-// Atomic local & Cloud SQL database write
-async function saveDatabase(data: DBSchema): Promise<void> {
+// Atomic local & Firestore database write
+function saveDatabase(data: DBSchema) {
   const tempFile = `${DB_FILE}.tmp`;
   try {
     fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), "utf-8");
     fs.renameSync(tempFile, DB_FILE);
   } catch (error) {
-    console.error("Local database save failed (expected in read-only environments like Vercel):", error);
+    console.error("Local database save failed:", error);
     if (fs.existsSync(tempFile)) {
       try { fs.unlinkSync(tempFile); } catch (_) {}
     }
   }
 
-  // Await Firestore write to ensure persistence on Vercel
-  try {
-    await saveToFirestore(data);
-  } catch (err) {
+  // Trigger background sync to Firestore
+  saveToFirestore(data).catch((err) => {
     console.error("[Firestore] Save failed:", err);
-  }
-
-  // Broadcast real-time updates to connected clients
-  try {
-    const totalStudents = data.students.length;
-    const todayStr = new Date().toISOString().substring(0, 10);
-    const todaysRegistrations = data.students.filter((s) => s.registration_date === todayStr).length;
-    const totalPvcGenerated = data.lastPvcIdNumber;
-
-    broadcastToAdmins("stats_updated", {
-      totalStudents,
-      todaysRegistrations,
-      totalPvcGenerated,
-    });
-
-    broadcastToAdmins("recent_students_updated", data.students.slice(-5).reverse());
-    broadcastToAdmins("audit_logs_updated", data.auditLogs.slice(0, 100));
-
-    // Also update student notification badges / assignments
-    broadcastToAll("db_synced", { timestamp: new Date().toISOString() });
-  } catch (wsErr) {
-    console.error("[WS] Failed to broadcast state update:", wsErr);
-  }
+  });
 }
 
 // Initial default state (will be replaced by Cloud SQL load in startServer)
@@ -767,54 +647,37 @@ Instructions:
   });
 }
 
-const app = express();
+async function startServer() {
+  const app = express();
 
-// Middleware for body parsing
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Load database from Firestore before starting
+  try {
+    const loadedDb = await loadFromFirestore();
+    db = loadedDb;
+    console.log("[Firestore] Database loaded and synced with in-memory state on startup.");
+  } catch (err) {
+    console.error("[Firestore] Database load on startup failed:", err);
+  }
 
-// Database Auto-loading State Manager
-let dbPromise: Promise<DBSchema> | null = null;
-let isDbLoaded = false;
+  // Middleware for body parsing
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-function ensureDbLoaded(): Promise<DBSchema> {
-  if (!dbPromise) {
-    dbPromise = loadFromFirestore().then((loadedDb) => {
-      db = loadedDb;
-      isDbLoaded = true;
-      return loadedDb;
+  // Helper to add audit logs
+  function logActivity(action: string, details: string, adminName: string) {
+    db.auditLogs.unshift({
+      id: "log-" + crypto.randomUUID().substring(0, 8),
+      action,
+      details,
+      admin_name: adminName,
+      created_at: new Date().toISOString(),
     });
-  }
-  return dbPromise;
-}
-
-// Middleware to ensure DB is loaded before handling any API request
-app.use(async (req, res, next) => {
-  if (req.path.startsWith("/api")) {
-    try {
-      await ensureDbLoaded();
-    } catch (err) {
-      console.error("[SL-TECHCO] DB load failed in middleware, using local fallback:", err);
+    // Keep last 1000 logs
+    if (db.auditLogs.length > 1000) {
+      db.auditLogs = db.auditLogs.slice(0, 1000);
     }
+    saveDatabase(db);
   }
-  next();
-});
-
-// Helper to add audit logs
-async function logActivity(action: string, details: string, adminName: string) {
-  db.auditLogs.unshift({
-    id: "log-" + crypto.randomUUID().substring(0, 8),
-    action,
-    details,
-    admin_name: adminName,
-    created_at: new Date().toISOString(),
-  });
-  // Keep last 1000 logs
-  if (db.auditLogs.length > 1000) {
-    db.auditLogs = db.auditLogs.slice(0, 1000);
-  }
-  await saveDatabase(db);
-}
 
   // --- API ROUTES ---
 
@@ -1795,32 +1658,25 @@ async function logActivity(action: string, details: string, adminName: string) {
   });
 
   // --- VITE DEV / PRODUCTION FLOW ---
-  // Export app for Vercel Serverless Function support
-  export default app;
-
-  async function initServer() {
-    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
-      app.use(vite.middlewares);
-    } else {
-      const distPath = path.join(process.cwd(), "dist");
-      app.use(express.static(distPath));
-      app.get("*", (req, res) => {
-        res.sendFile(path.join(distPath, "index.html"));
-      });
-    }
-
-    if (!process.env.VERCEL) {
-      const server = app.listen(PORT, "0.0.0.0", () => {
-        console.log(`[SL-TECHCO Server] Running on http://localhost:${PORT}`);
-      });
-      setupWebSocketServer(server);
-    }
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
   }
 
-  initServer().catch((err) => {
-    console.error("Failed to start SL-TECHCO server:", err);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[SL-TECHCO Server] Running on http://localhost:${PORT}`);
   });
+}
+
+startServer().catch((err) => {
+  console.error("Failed to start SL-TECHCO server:", err);
+});

@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { Student, AssignmentSubmission, LeaderboardEntry } from "../types";
 import PvcIdCard from "./PvcIdCard";
-import { useWebSocket } from "../lib/useWebSocket";
 
 interface StudentPortalProps {
   student: Student;
@@ -95,21 +94,6 @@ export default function StudentPortal({ student, token, onLogout }: StudentPorta
     fetchNotifications();
     fetchActiveStudyModule();
   }, [token]);
-
-  // Connect to real-time WebSockets if logged in as student
-  const wsStatus = useWebSocket({
-    role: "student",
-    studentId: student.id,
-    onMessage: (event, data) => {
-      console.log(`[Student WS] Event received: ${event}`, data);
-      if (event === "db_synced" || event === "notifications_updated") {
-        fetchNotifications();
-        fetchActiveStudyModule();
-        fetchSubmissions();
-        fetchLeaderboard();
-      }
-    }
-  });
 
   // Fetch student submissions
   const fetchSubmissions = async () => {
@@ -329,34 +313,13 @@ export default function StudentPortal({ student, token, onLogout }: StudentPorta
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className={`inline-block w-2 h-2 rounded-full ${
-              wsStatus === "connected" 
-                ? "bg-emerald-400 animate-pulse" 
-                : wsStatus === "connecting" 
-                  ? "bg-amber-400 animate-pulse" 
-                  : "bg-rose-500"
-            }`} />
-            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider leading-none ${
-              wsStatus === "connected"
-                ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
-                : wsStatus === "connecting"
-                  ? "text-amber-400 bg-amber-500/10 border border-amber-500/20"
-                  : "text-rose-400 bg-rose-500/10 border border-rose-500/20"
-            }`}>
-              {wsStatus === "connected" ? "REAL-TIME" : wsStatus === "connecting" ? "WS CONNECTING" : "OFFLINE"}
-            </span>
-          </div>
-
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
-        </div>
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all"
+        >
+          <LogOut className="w-4 h-4" />
+          Logout
+        </button>
       </header>
 
       {/* Main Stage */}

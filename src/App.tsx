@@ -1,6 +1,5 @@
 import { useState, useEffect, FormEvent } from "react";
 import { Student, AdminUser, DashboardStats, AuditLog } from "./types";
-import { useWebSocket } from "./lib/useWebSocket";
 import Dashboard from "./components/Dashboard";
 import RegisterStudent from "./components/RegisterStudent";
 import StudentDirectory from "./components/StudentDirectory";
@@ -150,23 +149,6 @@ export default function App() {
       fetchStatsAndLogs();
     }
   }, [token]);
-
-  // Connect to real-time WebSockets if logged in as admin
-  const wsStatus = useWebSocket({
-    role: "admin",
-    onMessage: (event, data) => {
-      console.log(`[Admin WS] Event received: ${event}`, data);
-      if (event === "stats_updated") {
-        setStats(data);
-      } else if (event === "recent_students_updated") {
-        setRecentStudents(data);
-      } else if (event === "audit_logs_updated") {
-        setAuditLogs(data);
-      } else if (event === "db_synced") {
-        fetchStatsAndLogs();
-      }
-    }
-  });
 
   // Handle Login Form Submit
   const handleLoginSubmit = async (e: FormEvent) => {
@@ -694,22 +676,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className={`inline-block w-2 h-2 rounded-full ${
-                wsStatus === "connected" 
-                  ? "bg-emerald-500 animate-pulse" 
-                  : wsStatus === "connecting" 
-                    ? "bg-amber-400 animate-pulse" 
-                    : "bg-rose-500"
-              }`} />
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider leading-none ${
-                wsStatus === "connected"
-                  ? "text-emerald-700 bg-emerald-50 border border-emerald-100"
-                  : wsStatus === "connecting"
-                    ? "text-amber-700 bg-amber-50 border border-amber-100"
-                    : "text-rose-700 bg-rose-50 border border-rose-100"
-              }`}>
-                {wsStatus === "connected" ? "REAL-TIME CONNECTED" : wsStatus === "connecting" ? "WS CONNECTING..." : "WS DISCONNECTED"}
+            <div className="hidden lg:flex flex-col text-right">
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider leading-none">
+                ✓ SYSTEM ONLINE
               </span>
             </div>
           </div>
