@@ -4,7 +4,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
 
 const app = getApps().length ? getApps()[0] : initializeApp({
-  projectId: firebaseConfig.projectId,
+  projectId: firebaseConfig.firestoreDatabaseId,
 });
 
 export const adminAuth = getAuth(app);

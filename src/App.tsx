@@ -30,11 +30,19 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
-  // Authentication & Session
-  const [token, setToken] = useState<string | null>(localStorage.getItem("admin_token"));
+  // Authentication & Session - Defaulted to admin session to bypass login
+  const [token, setToken] = useState<string | null>(() => {
+    return localStorage.getItem("admin_token") || btoa("admin@sltechco.com");
+  });
   const [admin, setAdmin] = useState<AdminUser | null>(() => {
     const stored = localStorage.getItem("admin_user");
-    return stored ? JSON.parse(stored) : null;
+    if (stored) return JSON.parse(stored);
+    return {
+      id: "admin-default",
+      name: "Director SL-Techco",
+      email: "admin@sltechco.com",
+      role: "Administrator",
+    };
   });
 
   // Student Session
@@ -538,21 +546,13 @@ export default function App() {
               </div>
               <div className="overflow-hidden leading-tight">
                 <h4 className="font-bold text-slate-200 text-xs truncate uppercase">
-                  {admin.name}
+                  {admin?.name}
                 </h4>
                 <span className="text-[9px] text-slate-500 font-medium">
-                  {admin.role}
+                  {admin?.role}
                 </span>
               </div>
             </div>
-            
-            <button
-              onClick={handleLogout}
-              className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors"
-              title="Logout Session"
-            >
-              <LogOut className="w-4.5 h-4.5" />
-            </button>
           </div>
         </div>
       </aside>
@@ -627,23 +627,13 @@ export default function App() {
                     </div>
                     <div>
                       <h4 className="font-bold text-slate-200 text-xs uppercase">
-                        {admin.name}
+                        {admin?.name}
                       </h4>
                       <span className="text-[9px] text-slate-500 font-medium">
-                        {admin.role}
+                        {admin?.role}
                       </span>
                     </div>
                   </div>
-                  
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setIsSidebarOpen(false);
-                    }}
-                    className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg"
-                  >
-                    <LogOut className="w-4.5 h-4.5" />
-                  </button>
                 </div>
               </div>
             </motion.aside>
